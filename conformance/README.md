@@ -1,7 +1,7 @@
 # Smart-tools conformance kit
 
 The first machine-checkable conformance kit for the
-[amplifier-smart-tools-spec](https://github.com/DavidKoleczek/amplifier-smart-tools-spec).
+[amplifier-smart-tools](https://github.com/microsoft/amplifier-smart-tools).
 It is **generic over any smart tool**: point it at a distribution root and it
 derives a PASS / FAIL verdict from the spec's must / must-not prose. It knows
 nothing about this repository's tmux tool -- it validates against its own
