@@ -6,7 +6,7 @@
 """smart-tools conformance kit -- run.py
 
 The first machine-checkable conformance kit for the amplifier-smart-tools-spec
-(https://github.com/DavidKoleczek/amplifier-smart-tools-spec). It is generic
+(https://github.com/microsoft/amplifier-smart-tools). It is generic
 over ANY smart tool: point it at a distribution root and it derives a verdict
 from the spec's must / must-not prose.
 
