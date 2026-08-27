@@ -1,5 +1,14 @@
 {
-  "cli_argv": ["python3", "cli.py"],
-  "deterministic_smoke": ["stats", "--text", "hello world"],
-  "bad_invocation": ["no-such-verb"]
+  "cli_argv": [
+    "python3",
+    "src/samplegood/cli.py"
+  ],
+  "deterministic_smoke": [
+    "stats",
+    "--text",
+    "hello world"
+  ],
+  "bad_invocation": [
+    "no-such-verb"
+  ]
 }

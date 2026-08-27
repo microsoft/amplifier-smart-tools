@@ -1,9 +1,8 @@
 # Amplifier Smart Tools
 
 The home of the **Smart Tools** specification, its conformance kit, and the
-catalog of reference implementations.
-
-A format for packaging domain expertise into tools that any agent can use.
+catalog of reference implementations. Smart Tools is a format for packaging domain 
+expertise into tools that any agent can use.
 
 ## What are Smart Tools?
 
@@ -18,10 +17,11 @@ over the top. Anything else is an optional adapter over the same library.
 
 ```
 my-smart-tool/
-├── SMART_TOOL.md    # Required: the manifest, what it is and what it needs
-├── pyproject.toml   # Required: the package definition
-├── src/             # Required: the library, plus a thin CLI over it
-└── ...              # Optional: MCP server, web UI, other adapters
+├── pyproject.toml          # Required: the package definition
+├── src/                    # Required: the library, plus a thin CLI over it
+│   └── my_smart_tool/
+│       └── SMART_TOOL.md   # Required: the manifest, what it is and what it needs
+└── ...                     # Optional: MCP server, web UI, other adapters
 ```
 
 ## Why Smart Tools?
@@ -40,20 +40,13 @@ tools package that expertise so it travels:
 
 ## What's in this repository
 
-| Path | What it is |
-|------|------------|
-| **[spec/](spec/README.md)** | The specification — start here |
-| **[conformance/](conformance/README.md)** | A machine-checkable conformance kit: is this a conforming smart tool? |
-| **[spec/examples.md](spec/examples.md)** | Catalog of reference implementations |
-| **[ROADMAP.md](ROADMAP.md)** | What the specification deliberately leaves open |
-
-### The specification
-
-- **[Specification](spec/README.md)**: start here
-- **[Structure](spec/structure.md)**: the layers a smart tool is built from
-- **[Manifest](spec/manifest.md)**: how a smart tool describes itself
-- **[Invocation](spec/invocation.md)**: calling a smart tool
-- **[Roadmap](ROADMAP.md)**: what is deliberately left open
+- **[spec/](spec/README.md)**: the specification, start here
+  - **[Structure](spec/structure.md)**: the layers a smart tool is built from
+  - **[Manifest](spec/manifest.md)**: how a smart tool describes itself
+  - **[Invocation](spec/invocation.md)**: calling a smart tool
+  - **[Examples](spec/examples.md)**: catalog of reference implementations
+- **[conformance/](conformance/README.md)**: a machine-checkable kit for deciding whether something is a conforming smart tool
+- **[ROADMAP.md](ROADMAP.md)**: what the specification deliberately leaves open
 
 ### Conformance
 
@@ -69,17 +62,7 @@ python3 conformance/run.py path/to/your-smart-tool
 
 ### Reference implementations
 
-Working smart tools that demonstrate the shape live in
-[spec/examples.md](spec/examples.md). The first is
-[**amplifier-smart-tool-tmux**](https://github.com/microsoft/amplifier-smart-tool-tmux),
-which enforces this repository's conformance kit in its own CI.
-
-## Provenance
-
-The Smart Tools specification originated at
-[DavidKoleczek/amplifier-smart-tools-spec](https://github.com/DavidKoleczek/amplifier-smart-tools-spec)
-and is developed here as its canonical home. The conformance kit was contributed
-alongside the first reference implementation.
+[spec/examples](spec/examples.md) lists reference smart tools.
 
 ## Contributing
 

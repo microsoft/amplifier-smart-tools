@@ -45,6 +45,18 @@ def test_sample_good_is_green():
     assert result["counts"]["skip"] == 0, result["failed_rules"]
 
 
+def test_manifest_is_found_inside_the_package():
+    """The manifest sits where packaging carries it into the built artifact.
+
+    For a src layout that is the module directory, not the directory holding the
+    package definition. Discovery must search the distribution rather than check
+    a fixed path.
+    """
+    result = _evaluate("sample-good")
+    present = next(c for c in result["checks"] if c["id"] == "manifest-present")
+    assert "src/samplegood/SMART_TOOL.md" in present["detail"]
+
+
 @pytest.mark.parametrize("fixture,primary", sorted(EXPECTED_PRIMARY.items()))
 def test_sample_bad_fails_with_named_rule(fixture, primary):
     result = _evaluate(fixture)

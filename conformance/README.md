@@ -18,7 +18,8 @@ uv run conformance/run.py <path-to-a-smart-tool>
 ```
 
 `<path-to-a-smart-tool>` is a **distribution root**: the directory that holds the
-package definition (`pyproject.toml` / `package.json`) and `SMART_TOOL.md`.
+package definition (`pyproject.toml` / `package.json`). The kit searches it for
+the one `SMART_TOOL.md` the tool ships.
 
 ## Output contract
 
@@ -44,7 +45,7 @@ in [`UPSTREAM-OFFER.md`](UPSTREAM-OFFER.md)).
 
 | Rule id | Enforces |
 |---|---|
-| `manifest-present` | `SMART_TOOL.md` exists at the distribution root. |
+| `manifest-present` | `SMART_TOOL.md` exists beneath the distribution root, in the tool's own source. |
 | `manifest-frontmatter-parses` | It opens with a closed YAML frontmatter fence that parses. |
 | `manifest-fields-closed` | No field outside the closed set `smart_tool_format, name, version, description, use_cases, platforms, requires`. |
 | `manifest-required-fields` | The required fields are present. |
@@ -71,7 +72,7 @@ The kit discovers how to invoke a tool's CLI in two ways:
 
    ```json
    {
-     "cli_argv": ["python3", "cli.py"],
+     "cli_argv": ["python3", "src/mytool/cli.py"],
      "deterministic_smoke": ["stats", "--text", "hello world"],
      "bad_invocation": ["no-such-verb"]
    }
@@ -98,7 +99,8 @@ the tool as a caller with **no** model credentials would.
 ## Fixtures (proof of discrimination)
 
 - `fixtures/sample-good/` -- a minimal, brand-neutral reference smart tool that
-  passes every rule.
+  passes every rule. It is laid out the way a real smart tool is: a `src/`
+  package holding the library, the CLI, and the one manifest both of them read.
 - `fixtures/sample-bad-*/` -- one defect each; the kit must fail each fixture with
   the corresponding rule named. Every rule the kit emits has a dedicated negative
   fixture (`tests/test_conformance.py::test_every_rule_has_a_negative_fixture`).
