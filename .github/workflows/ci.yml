@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  conformance-kit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      # The conformance kit is the load-bearing artifact of this repo: its own
+      # tests must pass, and it must still discriminate a conforming tool from a
+      # violating one (sample-good PASS, every sample-bad FAIL with its rule named).
+      - name: Conformance kit self-tests
+        run: uv run --with pytest pytest conformance/tests/ -q
