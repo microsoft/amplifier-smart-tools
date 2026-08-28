@@ -378,7 +378,11 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
         checks.append(Check(id_, status, spec, detail))
 
     # --- Manifest gathering ------------------------------------------------- #
-    manifest_path = target / MANIFEST_NAME
+    # The manifest sits beside the code that reads it, so it is found by searching
+    # the distribution rather than by a fixed path. Exactly one is permitted; when
+    # a tool ships several, M8 reports it and the first is parsed.
+    found_manifests = sorted(_find_manifests(target))
+    manifest_path = found_manifests[0] if found_manifests else target / MANIFEST_NAME
     fm: dict | None = None
     fm_error: str | None = None
     if manifest_path.is_file():
@@ -392,12 +396,14 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             fm_error = f"unexpected parse error: {exc}"
 
     # M1 manifest-present
+    manifest_spec = ("manifest.md: 'SMART_TOOL.md, in the tool's own source, beside the "
+                     "code that reads it.'")
     if manifest_path.is_file():
-        add("manifest-present", PASS, "manifest.md: 'SMART_TOOL.md at the distribution root.'",
-            f"{MANIFEST_NAME} found at distribution root")
+        add("manifest-present", PASS, manifest_spec,
+            f"{MANIFEST_NAME} found at {manifest_path.relative_to(target)}")
     else:
-        add("manifest-present", FAIL, "manifest.md: 'SMART_TOOL.md at the distribution root.'",
-            f"no {MANIFEST_NAME} at {target}")
+        add("manifest-present", FAIL, manifest_spec,
+            f"no {MANIFEST_NAME} anywhere under {target}")
 
     # M2 manifest-frontmatter-parses
     if not manifest_path.is_file():
@@ -523,7 +529,7 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
                 f"{len(req)} requires entry(ies) well-formed")
 
     # M8 manifest-single-per-root
-    found = _find_manifests(target)
+    found = found_manifests
     if len(found) > 1:
         rels = ", ".join(sorted(str(p.relative_to(target)) for p in found))
         add("manifest-single-per-root", FAIL,

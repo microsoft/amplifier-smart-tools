@@ -58,6 +58,13 @@ tried, and the pattern is cheap enough to keep until one of them is.
 **What would settle it:** the third or fourth tool. Two is not enough repetition to justify
 a generator.
 
+
+### 5. Docs for AI Integrations
+
+Currently the spec does not mention anything about what an AI integration looks like. Right
+now we delegate this exclusively to the examples.
+
+
 ## Beyond the specification
 
 These are not open questions within the specification. They are separate work with their own

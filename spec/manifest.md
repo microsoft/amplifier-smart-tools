@@ -20,21 +20,30 @@ to install or invoke the tool. Everything else belongs in the tool.
 
 ## Where it lives
 
-`SMART_TOOL.md` at the distribution root. YAML frontmatter, then a Markdown body.
+`SMART_TOOL.md`, in the tool's own source, beside the code that reads it. YAML frontmatter,
+then a Markdown body.
 
 The frontmatter is machine-readable and is the part other things depend on. The body is
 free-form guidance for whoever is about to use the tool: when to reach for it, what it is
-bad at, worked invocations. Advice, not law. It changes whenever taste changes.
+bad at, worked invocations.
 
 The distribution root is the directory that produces the installable unit: the one holding
 the package definition, such as `pyproject.toml` or `package.json`. For a repository that
-ships a single smart tool, that is the repository root and nothing more needs saying.
+ships a single smart tool, that is the repository root.
+
+There is one manifest and one copy of it. The library, the CLI, and every other adapter
+answer "what is this tool, and can I run it here" from the same bytes, so they cannot
+disagree about the tool's name, its version, or what it needs. It sits with the code because 
+the source is what every surface is built from. A manifest there is reachable from all of 
+them with nothing copied, generated, or kept in step.
 
 ```
 my-smart-tool/
-  SMART_TOOL.md
   pyproject.toml
   src/
+    my_smart_tool/
+      SMART_TOOL.md
+      __init__.py
 ```
 
 A repository may ship several smart tools, each rooted at its own distribution:
@@ -44,17 +53,17 @@ platform-monorepo/
   README.md
   tools/
     doc-summarizer/
-      SMART_TOOL.md
       pyproject.toml
-      src/
+      src/doc_summarizer/SMART_TOOL.md
     log-triage/
-      SMART_TOOL.md
       pyproject.toml
-      src/
+      src/log_triage/SMART_TOOL.md
 ```
 
 Exactly one manifest per distribution. A second `SMART_TOOL.md` beneath a distribution root
-is *incorrect* and not a valid smart tool.
+is *incorrect* and not a valid smart tool. Uniqueness is what keeps the manifest findable
+without a fixed path: whatever reads a distribution searches it and finds one manifest or
+none.
 
 ## Reading it after installation
 
@@ -62,7 +71,7 @@ The manifest is included in whatever the tool publishes, and the library exposes
 structured data read from the copy built into the tool. Callers reach the manifest through the library 
 rather than by locating a file. Install layouts differ by ecosystem and no filesystem path is portable across them.
 
-A file at the distribution root and an accessor on the library are the same manifest reached
+A file in the source tree and an accessor on the library are the same manifest reached
 two ways. The file serves anything reading source: a registry scraping a repository, CI, a
 person browsing. The library serves everything after installation. Wrappers expose the
 accessor in whatever form suits them, and add nothing of their own.
