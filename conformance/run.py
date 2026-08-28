@@ -10,8 +10,7 @@ The first machine-checkable conformance kit for the amplifier-smart-tools-spec
 over ANY smart tool: point it at a distribution root and it derives a verdict
 from the spec's must / must-not prose.
 
-  usage:  python3 run.py <tool-dir> [--timeout SECONDS] [--json-only]
-          uv run conformance/run.py <tool-dir>
+  usage:  uv run conformance/run.py <tool-dir> [--timeout SECONDS] [--json-only]
 
 Design commitments (mirroring proven conformance kits):
   * stdlib only -- no third-party dependency, no network access;
@@ -29,11 +28,13 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePath
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -322,9 +323,7 @@ def discover_recipe(descriptor: dict | None, descriptor_error: str, target: Path
     argv = descriptor.get("cli_argv")
     if not isinstance(argv, list) or not argv:
         return Recipe(reason=f"{DESCRIPTOR_NAME} has no non-empty 'cli_argv' list")
-    argv = list(argv)
-    if argv[0] in ("python", "python3"):
-        argv[0] = sys.executable
+    argv = [_absolutize(a, target) for a in argv]
     unresolved = _unresolved_executable(argv[0], target)
     if unresolved:
         return Recipe(reason=unresolved)
@@ -576,13 +575,21 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             "beneath a distribution root is incorrect.'", "no manifest found under root")
 
     # --- Runtime gathering -------------------------------------------------- #
+    # The tool runs from a scratch directory, never from its own. A conformance
+    # run inspects a distribution; it must not be able to leave anything behind
+    # in one. Anything the tool writes relative to its working directory lands
+    # here and is discarded.
     recipe = discover_recipe(descriptor, descriptor_error, target)
     help_run = smoke_run = bad_run = None
     if recipe.argv is not None:
-        help_run = run_cli(recipe.argv + ["--help"], target, timeout, scrub=True)
-        if recipe.smoke:
-            smoke_run = run_cli(recipe.argv + recipe.smoke, target, timeout, scrub=True)
-        bad_run = run_cli(recipe.argv + recipe.bad, target, timeout, scrub=True)
+        scratch = Path(tempfile.mkdtemp(prefix="smart-tools-conformance-"))
+        try:
+            help_run = run_cli(recipe.argv + ["--help"], scratch, timeout, scrub=True)
+            if recipe.smoke:
+                smoke_run = run_cli(recipe.argv + recipe.smoke, scratch, timeout, scrub=True)
+            bad_run = run_cli(recipe.argv + recipe.bad, scratch, timeout, scrub=True)
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
 
     # R1 loads-without-provider
     spec_r1 = ("structure.md: 'the straight code paths run with no model provider configured "
@@ -691,6 +698,27 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
         "failed_rules": [c.id for c in checks if c.status == FAIL],
         "checks": [vars(c) for c in checks],
     }
+
+
+def _absolutize(arg: str, target: Path) -> str:
+    """Resolve a cli_argv element that names a file inside the distribution.
+
+    The tool is run from a scratch directory rather than its own, so a path
+    relative to the distribution root would not resolve. An element is rewritten
+    only when it both names a file under the root and looks like a filename: it
+    carries a separator or a suffix. That leaves subcommands and flags alone, so
+    a root that happens to contain a file called `run` does not turn `uv run`
+    into a path.
+    """
+    if os.path.isabs(arg):
+        return arg
+    looks_like_path = (
+        os.sep in arg or (os.altsep is not None and os.altsep in arg) or bool(PurePath(arg).suffix)
+    )
+    if not looks_like_path:
+        return arg
+    candidate = target / arg
+    return str(candidate.resolve()) if candidate.is_file() else arg
 
 
 def _within(path: Path, root: Path) -> bool:
