@@ -28,8 +28,9 @@ free-form guidance for whoever is about to use the tool: when to reach for it, w
 bad at, worked invocations.
 
 The distribution root is the directory that produces the installable unit: the one holding
-the package definition, such as `pyproject.toml` or `package.json`. For a repository that
-ships a single smart tool, that is the repository root.
+the package definition, such as `pyproject.toml` or `package.json`, and the descriptor
+`smart-tool.json`. For a repository that ships a single smart tool, that is the repository
+root.
 
 There is one manifest and one copy of it. The library, the CLI, and every other adapter
 answer "what is this tool, and can I run it here" from the same bytes, so they cannot
@@ -37,8 +38,14 @@ disagree about the tool's name, its version, or what it needs. It sits with the 
 the source is what every surface is built from. A manifest there is reachable from all of 
 them with nothing copied, generated, or kept in step.
 
+Exactly where it sits is the tool's choice, because ecosystems differ in what a build can
+carry into a published artifact and no one path suits them all. The descriptor at the
+distribution root names it, so a reader opens one file at a known path and is told where
+to look next.
+
 ```
 my-smart-tool/
+  smart-tool.json
   pyproject.toml
   src/
     my_smart_tool/
@@ -53,17 +60,20 @@ platform-monorepo/
   README.md
   tools/
     doc-summarizer/
+      smart-tool.json
       pyproject.toml
       src/doc_summarizer/SMART_TOOL.md
     log-triage/
-      pyproject.toml
-      src/log_triage/SMART_TOOL.md
+      smart-tool.json
+      package.json
+      src/SMART_TOOL.md
 ```
 
-Exactly one manifest per distribution. A second `SMART_TOOL.md` beneath a distribution root
-is *incorrect* and not a valid smart tool. Uniqueness is what keeps the manifest findable
-without a fixed path: whatever reads a distribution searches it and finds one manifest or
-none.
+The distributions in one repository need not share an ecosystem.
+
+Exactly one manifest per distribution. A second `SMART_TOOL.md` under a distribution root
+is *incorrect* and not a valid smart tool. A manifest under a nested descriptor belongs 
+to that tool and does not count against this one.
 
 ## Reading it after installation
 

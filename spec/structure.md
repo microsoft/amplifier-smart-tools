@@ -63,7 +63,7 @@ deterministic code, it is a tool, and that is fine, but it is not a smart tool.
 
 At the same time, the straight code paths run with no model provider configured. A caller
 that only wants the deterministic capabilities never has to supply model credentials, and
-the tool must not refuse to load without them. A tool that demands a provider at import
+the tool must not refuse to load without them. A tool that demands a provider at load
 time has made its AI capability mandatory, which is the opposite of what this asks for.
 
 The model-backed paths are ordinary capabilities of the library. They take arguments, they

@@ -7,8 +7,5 @@
     "stats",
     "--text",
     "hello world"
-  ],
-  "bad_invocation": [
-    "no-such-verb"
   ]
 }

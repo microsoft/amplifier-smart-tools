@@ -17,6 +17,7 @@ TIMEOUT = 4.0
 # cannot run its deterministic verb); we assert the primary rule is *among* the
 # failures, not that it is the only one.
 EXPECTED_PRIMARY = {
+    "sample-bad-descriptor-no-manifest": "descriptor-present",
     "sample-bad-manifest-missing": "manifest-present",
     "sample-bad-frontmatter-broken": "manifest-frontmatter-parses",
     "sample-bad-extra-field": "manifest-fields-closed",
@@ -49,12 +50,23 @@ def test_manifest_is_found_inside_the_package():
     """The manifest sits where packaging carries it into the built artifact.
 
     For a src layout that is the module directory, not the directory holding the
-    package definition. Discovery must search the distribution rather than check
-    a fixed path.
+    package definition. The descriptor names that path, so discovery works
+    wherever an ecosystem's build requires the manifest to live.
     """
     result = _evaluate("sample-good")
     present = next(c for c in result["checks"] if c["id"] == "manifest-present")
     assert "src/samplegood/SMART_TOOL.md" in present["detail"]
+
+
+def test_nested_distribution_does_not_count_against_its_parent():
+    """A vendored tool's tree is bounded by its own descriptor.
+
+    The fixtures directory holds many distributions, each with a manifest. A tool
+    that vendors it must not thereby trip manifest-single-per-root.
+    """
+    result = run.evaluate(FIXTURES_DIR.parent, timeout=TIMEOUT)
+    by_id = {c["id"]: c["status"] for c in result["checks"]}
+    assert by_id["manifest-single-per-root"] != run.FAIL
 
 
 @pytest.mark.parametrize("fixture,primary", sorted(EXPECTED_PRIMARY.items()))
@@ -88,9 +100,13 @@ def test_skip_is_honest_never_a_fabricated_pass():
     assert by_id["manifest-version-matches-package"] == run.SKIP
 
 
-def test_runtime_rules_skip_when_no_cli(tmp_path: Path):
-    """A tool with a valid manifest but no discoverable CLI recipe SKIPs the
-    runtime rules honestly rather than passing or failing them."""
+def test_runtime_rules_skip_without_a_descriptor(tmp_path: Path):
+    """A directory with a manifest but no descriptor is not a distribution.
+
+    The runtime rules cannot be evaluated without one, so they SKIP honestly
+    rather than being fabricated as PASS or condemned as FAIL. The missing
+    descriptor itself is what fails.
+    """
     (tmp_path / "SMART_TOOL.md").write_text(
         "---\n"
         "smart_tool_format: 1\n"
@@ -114,9 +130,10 @@ def test_runtime_rules_skip_when_no_cli(tmp_path: Path):
         "failure-names-remedy",
         "no-hang-stdin-closed",
     ):
-        assert by_id[rule] == run.SKIP, f"{rule} should SKIP without a CLI recipe"
-    # No FAILs -> a manifest-only artifact is not falsely condemned.
-    assert result["counts"]["fail"] == 0
+        assert by_id[rule] == run.SKIP, f"{rule} should SKIP without a descriptor"
+    assert by_id["descriptor-present"] == run.FAIL
+    # Nothing beyond the missing descriptor and the manifest it would have named.
+    assert set(result["failed_rules"]) == {"descriptor-present", "manifest-present"}
 
 
 def test_verdict_json_shape():
