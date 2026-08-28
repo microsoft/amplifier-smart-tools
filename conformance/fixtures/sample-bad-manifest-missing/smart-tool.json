@@ -1,7 +1,9 @@
 {
   "manifest": "src/samplegood/SMART_TOOL.md",
   "cli_argv": [
-    "python3",
+    "uv",
+    "run",
+    "--no-project",
     "src/samplegood/cli.py"
   ],
   "deterministic_smoke": [

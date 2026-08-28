@@ -83,6 +83,18 @@ understanding back onto the caller.
 Where a capability produces an artifact, a profile, a document, a configuration, the result
 identifies the artifact rather than embedding it in a message.
 
+## Where a tool puts its files
+
+State, caches, logs, and temporary files belong outside the tool's own directory. A smart
+tool is installed from a distribution it does not own and is invoked from a working
+directory it did not choose, so neither is a safe place to write. State goes to the
+conventional per-user location for the platform, temporary files to a temporary directory,
+and output artifacts where the caller asked for them.
+
+A tool that writes beside its own source is relying on having been run from a checkout. It
+scatters files into the tree it was installed from, and those files reach a repository, a
+pull request, or a published package without anyone deciding they should.
+
 ## Failure
 
 Failures are loud and they name the remedy. A caller should never have to infer what went

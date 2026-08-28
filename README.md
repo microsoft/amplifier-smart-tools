@@ -58,7 +58,7 @@ reported `SKIP`, never a fabricated `PASS`). Run it against any tool's
 distribution root:
 
 ```bash
-python3 conformance/run.py path/to/your-smart-tool
+uv run conformance/run.py path/to/your-smart-tool
 ```
 
 ### Reference implementations

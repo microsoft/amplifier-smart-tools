@@ -1,6 +1,8 @@
 """Discrimination tests: the kit is green on sample-good and red-with-named-rule
 on every sample-bad fixture."""
 
+import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -98,6 +100,38 @@ def test_skip_is_honest_never_a_fabricated_pass():
     result = _evaluate("sample-bad-missing-version")
     by_id = {c["id"]: c["status"] for c in result["checks"]}
     assert by_id["manifest-version-matches-package"] == run.SKIP
+
+
+def test_tool_runs_in_a_scratch_directory(tmp_path: Path):
+    """A conformance run leaves nothing behind in the distribution it inspects.
+
+    The tool is started from a scratch directory, so anything it writes relative
+    to its working directory lands there rather than in its own tree.
+    """
+    tool = tmp_path / "tool"
+    shutil.copytree(FIXTURES_DIR / "sample-good", tool)
+
+    # A wrapper that litters its working directory, then defers to the real CLI.
+    # Wrapping rather than editing cli.py keeps the tool itself valid, so a
+    # crash cannot masquerade as "nothing was written".
+    (tool / "litter_wrapper.py").write_text(
+        "import runpy\n"
+        "from pathlib import Path\n"
+        "Path('LITTER.txt').write_text('written from the working directory')\n"
+        "cli = Path(__file__).parent / 'src' / 'samplegood' / 'cli.py'\n"
+        "runpy.run_path(str(cli), run_name='__main__')\n",
+        encoding="utf-8",
+    )
+    descriptor = json.loads((tool / "smart-tool.json").read_text())
+    descriptor["cli_argv"] = ["uv", "run", "--no-project", "litter_wrapper.py"]
+    (tool / "smart-tool.json").write_text(json.dumps(descriptor, indent=2), encoding="utf-8")
+
+    result = run.evaluate(tool, timeout=TIMEOUT)
+
+    # The CLI really ran: --help succeeded through the wrapper.
+    by_id = {c["id"]: c["status"] for c in result["checks"]}
+    assert by_id["loads-without-provider"] == run.PASS, "the wrapper never reached the CLI"
+    assert not list(tool.rglob("LITTER.txt")), "the tool wrote into the distribution"
 
 
 def test_runtime_rules_skip_without_a_descriptor(tmp_path: Path):

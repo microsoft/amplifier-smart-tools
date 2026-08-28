@@ -11,9 +11,6 @@ fixtures under `fixtures/`.
 
 ```bash
 # stdlib only -- no dependencies, no network
-python3 conformance/run.py <path-to-a-smart-tool>
-
-# or, uv-runnable:
 uv run conformance/run.py <path-to-a-smart-tool>
 ```
 
@@ -72,18 +69,24 @@ at the distribution root (see `spec/packaging.md`):
 ```json
 {
   "manifest": "src/mytool/SMART_TOOL.md",
-  "cli_argv": ["python3", "src/mytool/cli.py"],
+  "cli_argv": ["uv", "run", "--no-project", "src/mytool/cli.py"],
   "deterministic_smoke": ["stats", "--text", "hello world"]
 }
 ```
 
 - `manifest` -- where `SMART_TOOL.md` lives, relative to the descriptor.
-- `cli_argv` -- how to launch the CLI (run with the tool dir as cwd; a leading
-  `python`/`python3` is resolved to the running interpreter).
+- `cli_argv` -- how to launch the CLI. An element naming a file inside the
+  distribution is resolved against the root before the tool is started.
 - `deterministic_smoke` -- a side-effect-free deterministic invocation.
 
 To exercise `failure-names-remedy` the kit appends a verb no tool defines,
 `__conformance_no_such_verb__`, and inspects how the rejection is shaped.
+
+The tool is run from a scratch directory, never from its own. A conformance run
+inspects a distribution and must not be able to leave anything behind in one, so
+whatever the tool writes relative to its working directory lands in the scratch
+directory and is discarded. A tool that expects to find its own files by walking
+up from the working directory will not, which is the behaviour being checked.
 
 This is the kit's only source. It never installs the tool under test: present it
 with one that already runs, from source or installed onto the path. Without a
