@@ -1,4 +1,5 @@
 {
+  "manifest": "src/samplegood/SMART_TOOL.md",
   "cli_argv": [
     "python3",
     "src/samplegood/cli.py"
@@ -7,8 +8,5 @@
     "stats",
     "--text",
     "hello world"
-  ],
-  "bad_invocation": [
-    "no-such-verb"
   ]
 }

@@ -74,18 +74,14 @@ selects and packages the context should be code the caller controls.
 
 ## What comes back
 
-A result a caller can act on without parsing prose.
-
-At the library level, that means ordinary return values: objects, dataclasses, dictionaries.
-At the CLI, it means structured output on stdout. The test is whether the caller can hand
-the result to the next step programmatically. A model-backed capability that returns a
-paragraph of explanation has moved the work of understanding back onto the caller.
+A result a caller can act on without parsing prose. At the library level, 
+that means ordinary return values. At the CLI, it means structured output on stdout.
+The test is whether the caller can hand the result to the next step programmatically. 
+A model-backed capability that returns a paragraph of explanation has moved the work of 
+understanding back onto the caller.
 
 Where a capability produces an artifact, a profile, a document, a configuration, the result
 identifies the artifact rather than embedding it in a message.
-
-A capability that fans out across a domain can run far longer than a normal function call.
-How progress is reported is not settled.
 
 ## Failure
 

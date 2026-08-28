@@ -17,11 +17,11 @@ over the top. Anything else is an optional adapter over the same library.
 
 ```
 my-smart-tool/
-├── pyproject.toml          # Required: the package definition
-├── src/                    # Required: the library, plus a thin CLI over it
-│   └── my_smart_tool/
-│       └── SMART_TOOL.md   # Required: the manifest, what it is and what it needs
-└── ...                     # Optional: MCP server, web UI, other adapters
+├── smart-tool.json         # Required: where the manifest is, how to launch the CLI
+├── <package definition>    # Required: whatever the ecosystem uses
+├── <library + thin CLI>    # Required: the library, plus a thin CLI over it
+│   └── SMART_TOOL.md       # Required: the manifest, what it is and what it needs
+└── ...                     # Optional: MCP server, web UI, other optional adapters
 ```
 
 ## Why Smart Tools?
@@ -44,6 +44,7 @@ tools package that expertise so it travels:
   - **[Structure](spec/structure.md)**: the layers a smart tool is built from
   - **[Manifest](spec/manifest.md)**: how a smart tool describes itself
   - **[Invocation](spec/invocation.md)**: calling a smart tool
+  - **[Packaging](spec/packaging.md)**: publishing, installing, and launching a smart tool
   - **[Examples](spec/examples.md)**: catalog of reference implementations
 - **[conformance/](conformance/README.md)**: a machine-checkable kit for deciding whether something is a conforming smart tool
 - **[ROADMAP.md](ROADMAP.md)**: what the specification deliberately leaves open

@@ -46,14 +46,12 @@ every smart tool follows, or stays each tool's own choice, is undecided.
 **What would settle it:** two tools built independently. If both reach for the same shape
 without coordinating, it is a convention worth writing down. If they do not, it is not.
 
-### 4. Packaging and distribution
+### 4. Generated wrappers
 
-How a smart tool is published and installed is unresolved.
-
-Related to it: today each tool implements its own wrappers by following the same pattern.
-The alternative is a generator that emits CLI and MCP surfaces from the library, or a
-generic host that loads libraries and exposes them. Both have been raised, neither has been
-tried, and the pattern is cheap enough to keep until one of them is.
+Today each tool implements its own wrappers by following the same pattern. The alternative
+is a generator that emits CLI and MCP surfaces from the library, or a generic host that
+loads libraries and exposes them. Both have been raised, neither has been tried, and the
+pattern is cheap enough to keep until one of them is.
 
 **What would settle it:** the third or fourth tool. Two is not enough repetition to justify
 a generator.

@@ -40,54 +40,58 @@ the one `SMART_TOOL.md` the tool ships.
 
 ## What it checks
 
-Thirteen rules, each carrying the spec sentence it operationalizes (full mapping
+Fourteen rules, each carrying the spec sentence it operationalizes (full mapping
 in [`UPSTREAM-OFFER.md`](UPSTREAM-OFFER.md)).
 
 | Rule id | Enforces |
 |---|---|
-| `manifest-present` | `SMART_TOOL.md` exists beneath the distribution root, in the tool's own source. |
+| `descriptor-present` | `smart-tool.json` at the distribution root names the manifest and how to launch the CLI. |
+| `manifest-present` | The manifest exists at the path the descriptor names, inside the distribution. |
 | `manifest-frontmatter-parses` | It opens with a closed YAML frontmatter fence that parses. |
 | `manifest-fields-closed` | No field outside the closed set `smart_tool_format, name, version, description, use_cases, platforms, requires`. |
 | `manifest-required-fields` | The required fields are present. |
 | `manifest-name-format` | `name` is lowercase alphanumeric and hyphens. |
 | `manifest-version-matches-package` | Manifest `version` equals the package-definition version. |
 | `manifest-requires-shape` | Each `requires` entry is `{name, purpose, install[, optional]}`; `install` is a doc reference, never a command. |
-| `manifest-single-per-root` | Exactly one `SMART_TOOL.md` beneath the root. |
+| `manifest-single-per-root` | Exactly one `SMART_TOOL.md` under the root, not counting nested distributions. |
 | `loads-without-provider` | With provider env scrubbed, the tool loads (`--help` exits 0) -- it does not refuse to load. |
 | `help-discloses-model-backed` | `--help` discloses which capabilities are model-backed. |
 | `deterministic-capability-runs` | A declared deterministic capability runs with provider env scrubbed. |
 | `failure-names-remedy` | A bad invocation yields a structured JSON error + non-zero exit, not a bare stack trace. |
 | `no-hang-stdin-closed` | A run with stdin closed completes within the bounded timeout. |
 
-The eight `manifest-*` rules are pure file inspection and run against any tool in
-any language. The five runtime rules need to *invoke* the tool (see below); when
-no invocation is possible they SKIP honestly.
+The descriptor rule and the eight `manifest-*` rules are pure file inspection and
+run against any tool in any language. The five runtime rules need to *invoke* the
+tool (see below); when no invocation is possible they SKIP honestly.
 
-## Making a tool's runtime rules checkable
+## The descriptor
 
-The kit discovers how to invoke a tool's CLI in two ways:
+Everything the kit needs to locate and start a tool comes from `smart-tool.json`
+at the distribution root (see `spec/packaging.md`):
 
-1. **A hint file** `smart-tool-conformance.json` at the distribution root
-   (language-agnostic, preferred):
+```json
+{
+  "manifest": "src/mytool/SMART_TOOL.md",
+  "cli_argv": ["python3", "src/mytool/cli.py"],
+  "deterministic_smoke": ["stats", "--text", "hello world"]
+}
+```
 
-   ```json
-   {
-     "cli_argv": ["python3", "src/mytool/cli.py"],
-     "deterministic_smoke": ["stats", "--text", "hello world"],
-     "bad_invocation": ["no-such-verb"]
-   }
-   ```
+- `manifest` -- where `SMART_TOOL.md` lives, relative to the descriptor.
+- `cli_argv` -- how to launch the CLI (run with the tool dir as cwd; a leading
+  `python`/`python3` is resolved to the running interpreter).
+- `deterministic_smoke` -- a side-effect-free deterministic invocation.
 
-   - `cli_argv` -- how to launch the CLI (run with the tool dir as cwd; a leading
-     `python`/`python3` is resolved to the running interpreter).
-   - `deterministic_smoke` -- a side-effect-free deterministic invocation.
-   - `bad_invocation` -- args guaranteed to be rejected (defaults to a nonsense verb).
+To exercise `failure-names-remedy` the kit appends a verb no tool defines,
+`__conformance_no_such_verb__`, and inspects how the rejection is shaped.
 
-2. **Auto-detect** -- failing a hint, a Python `[project.scripts]` entry is driven
-   through `uv run --project <dir>`.
+This is the kit's only source. It never installs the tool under test: present it
+with one that already runs, from source or installed onto the path. Without a
+descriptor, `descriptor-present` FAILs and the five runtime rules SKIP rather
+than passing or failing.
 
-With neither available, the five runtime rules SKIP (reason: *no CLI entry point
-discoverable*) rather than passing or failing.
+A subdirectory with its own descriptor is a nested distribution, and its manifest
+is not counted against the parent.
 
 ### Provider scrubbing
 
