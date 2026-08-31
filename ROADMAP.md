@@ -6,67 +6,33 @@ Each area below states a question the specification deliberately leaves open, wh
 open, and what would settle it. Areas are ordered by which is expected to force a decision
 first, not by importance. This reflects current thinking rather than firm commitments. 
 
-## Areas
+## Active Open Decisions
 
 ### 1. Long-running and expensive calls
 
-A capability that fans out across a domain can run far longer than a caller expects a
-function call to take, and a model-backed one costs something every time it runs. The
-specification addresses neither. There is no way for a capability to report progress, stream
-intermediate output, or be cancelled, and no way for a result to carry what it cost in
-tokens or time.
+Currently nothing prescribes or shows examples of how to handle long running calls.
+For example, a smart tool capability might call an agent that runs for over an hour, but
+to the caller, it *could* output nothing during that time and be valid. Should we consider
+advocating in the spec to periodically return progress, or even suggest to output agent messages
+as they come?
 
-This is the gap a real tool is most likely to hit first. A caller that has waited ninety
-seconds with no output cannot tell whether the tool is working or hung, and an agent
-budgeting across many calls has nothing to budget with.
+### 2. Details about how to integrate the intelligence into a smart tool
 
-**What would settle it:** a tool with a genuinely slow capability. The shape of its progress
-reporting is worth generalizing once one exists, and not before.
+Currently the spec does not mention anything about what an AI integration looks like for the
+smart capabilities. Right now we delegate this exclusively to the examples.
 
-### 2. What a tool discloses about itself
+### 3. How other products consume smart tools
 
-The specification says callers are told which capabilities are model-backed, on the grounds
-that cost and determinism are the caller's business. The library declares it and the CLI
-renders it.
-
-The competing position is that a tool should be implementation-invisible, so that it stays
-free to change how a capability is implemented without breaking anyone. Both are defensible
-and they conflict.
-
-**What would settle it:** a decision rather than evidence. This one does not resolve by
-building. Dropping the distinction would touch several sections of the invocation chapter
-and the disclosure rule in the structure chapter, and nothing else.
-
-### 3. Conventions shared across tools
-
-Context granularity is described as none, partial, and full, but as useful granularity
-rather than as a required parameter carrying those names. Whether it becomes a convention
-every smart tool follows, or stays each tool's own choice, is undecided.
-
-**What would settle it:** two tools built independently. If both reach for the same shape
-without coordinating, it is a convention worth writing down. If they do not, it is not.
+Nothing says what a product like the Amplifier App CLI, Copilot CLI, or Claude Code does to make
+an installed smart tool available to its agent. Does every tool ship a skill, or
+does one skill teach a host to find the installed tools and read their manifests?
 
 ### 4. Generated wrappers
 
-Today each tool implements its own wrappers by following the same pattern. The alternative
-is a generator that emits CLI and MCP surfaces from the library, or a generic host that
-loads libraries and exposes them. Both have been raised, neither has been tried, and the
-pattern is cheap enough to keep until one of them is.
+Should we provide or suggest tools for generating wrappers for SDKs in other languages or MCP
+servers?
 
-**What would settle it:** the third or fourth tool. Two is not enough repetition to justify
-a generator.
-
-
-### 5. Docs for AI Integrations
-
-Currently the spec does not mention anything about what an AI integration looks like. Right
-now we delegate this exclusively to the examples.
-
-
-## Beyond the specification
-
-These are not open questions within the specification. They are separate work with their own
-shape, kept out so the specification stays about what a single tool is.
+## Beyond
 
 **Registry and discovery.** There will be a registry, and discovery is its own project. Its
 format is undecided. The specification requires only that each tool own a self-description
