@@ -21,6 +21,7 @@ TIMEOUT = 4.0
 EXPECTED_PRIMARY = {
     "sample-bad-descriptor-no-manifest": "descriptor-present",
     "sample-bad-manifest-missing": "manifest-present",
+    "sample-bad-manifest-wrong-name": "manifest-present",
     "sample-bad-frontmatter-broken": "manifest-frontmatter-parses",
     "sample-bad-extra-field": "manifest-fields-closed",
     "sample-bad-missing-version": "manifest-required-fields",

@@ -418,20 +418,28 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             fm_error = f"unexpected parse error: {exc}"
 
     # M1 manifest-present
-    manifest_spec = ("manifest.md: 'The descriptor at the distribution root names it, so a "
-                     "reader opens one file at a known path and is told where to look next.'")
+    # Where the manifest sits is the tool's choice; what it is called is not. The
+    # basename is checked because every other reader of a distribution -- and the
+    # single-per-root walk below -- looks for that exact name.
+    manifest_spec = ("packaging.md: 'manifest: required. Path to SMART_TOOL.md, relative to "
+                     "this file.' manifest.md: 'The descriptor at the distribution root "
+                     "names it, so a reader opens one file at a known path.'")
     if manifest_rel is None:
         add("manifest-present", FAIL, manifest_spec,
             f"{DESCRIPTOR_NAME} does not name a manifest (see descriptor-present)")
     elif not _within(manifest_path, target):
         add("manifest-present", FAIL, manifest_spec,
             f"'manifest': {manifest_rel!r} resolves outside the distribution root")
-    elif manifest_path.is_file():
-        add("manifest-present", PASS, manifest_spec,
-            f"{MANIFEST_NAME} found at {manifest_path.relative_to(target)}")
-    else:
+    elif not manifest_path.is_file():
         add("manifest-present", FAIL, manifest_spec,
             f"'manifest': {manifest_rel!r} does not exist")
+    elif manifest_path.name != MANIFEST_NAME:
+        add("manifest-present", FAIL, manifest_spec,
+            f"'manifest': {manifest_rel!r} is named {manifest_path.name!r}, "
+            f"not {MANIFEST_NAME}")
+    else:
+        add("manifest-present", PASS, manifest_spec,
+            f"{MANIFEST_NAME} found at {manifest_path.relative_to(target)}")
 
     # M2 manifest-frontmatter-parses
     if not manifest_path.is_file():

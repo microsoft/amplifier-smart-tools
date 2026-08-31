@@ -45,7 +45,7 @@ exist.
 | Rule id | Enforces |
 |---|---|
 | `descriptor-present` | `smart-tool.json` at the distribution root names the manifest and how to launch the CLI. |
-| `manifest-present` | The manifest exists at the path the descriptor names, inside the distribution. |
+| `manifest-present` | The manifest exists at the path the descriptor names, inside the distribution, and is named `SMART_TOOL.md`. |
 | `manifest-frontmatter-parses` | It opens with a closed YAML frontmatter fence that parses. |
 | `manifest-fields-closed` | No field outside the closed set `smart_tool_format, name, version, description, use_cases, platforms, requires`. |
 | `manifest-required-fields` | Every field except `requires` is present. The spec fixes the field set without designating any required, so this floor is the kit's. |
