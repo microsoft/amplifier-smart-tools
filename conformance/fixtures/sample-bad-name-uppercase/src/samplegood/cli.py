@@ -8,8 +8,7 @@ kit as its known-good fixture. It exists to be *passed* by every rule:
   * Its deterministic verb (``stats``) runs with no model provider configured.
   * Its model-backed verb (``summarize``) fails loudly with a named remedy when
     no provider is configured -- it never silently degrades.
-  * Both ``-h`` and ``--help`` are answered, and ``--help`` discloses which
-    capabilities are model-backed.
+  * Both ``-h`` and ``--help`` are answered.
   * A bad invocation exits non-zero, carrying a structured JSON error envelope
     on stdout.
   * Nothing here reads stdin, so a run with stdin closed never hangs.

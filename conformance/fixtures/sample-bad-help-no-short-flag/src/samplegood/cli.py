@@ -2,9 +2,8 @@
 """DEFECT: `--help` works but `-h` is not recognised.
 
 Violates: help-flags-supported.
-The tool loads without a provider, discloses its model-backed capability under
-``--help``, runs its deterministic verb, fails non-zero on a bad invocation, and
-never hangs. But it registers only the long flag, so ``-h`` is rejected as an
+The tool loads without a provider, runs its deterministic verb, fails non-zero
+on a bad invocation, and never hangs. But it registers only the long flag, so ``-h`` is rejected as an
 unknown argument. The spec permits ``-h`` and ``--help`` to render the same text;
 it does not permit ``-h`` to go unanswered.
 """
