@@ -28,9 +28,8 @@ correctly.
 ## Self-description
 
 A smart tool can describe its own surface: the capabilities it offers, their arguments and
-types, what each returns, and which of them are model-backed. Self-description covers how to
-drive the tool. The manifest covers whether to reach for it at all, and is reachable from the
-library in the same way.
+types, and what each returns. Self-description covers how to drive the tool. The manifest
+covers whether to reach for it at all, and is reachable from the library in the same way.
 
 Most of this is native to a library. Signatures and docstrings carry the names, arguments,
 types, and return shapes, and a caller holding the library reads them the way it reads any
