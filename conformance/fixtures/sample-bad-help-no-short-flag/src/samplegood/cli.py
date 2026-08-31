@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
-"""samplegood -- a minimal reference smart tool.
+"""DEFECT: `--help` works but `-h` is not recognised.
 
-This is a deliberately tiny, brand-neutral smart tool used by the conformance
-kit as its known-good fixture. It exists to be *passed* by every rule:
-
-  * It is a library-first tool with a thin CLI wrapper.
-  * Its deterministic verb (``stats``) runs with no model provider configured.
-  * Its model-backed verb (``summarize``) fails loudly with a named remedy when
-    no provider is configured -- it never silently degrades.
-  * Both ``-h`` and ``--help`` are answered, and ``--help`` discloses which
-    capabilities are model-backed.
-  * A bad invocation exits non-zero, carrying a structured JSON error envelope
-    on stdout.
-  * Nothing here reads stdin, so a run with stdin closed never hangs.
+Violates: help-flags-supported.
+The tool loads without a provider, discloses its model-backed capability under
+``--help``, runs its deterministic verb, fails non-zero on a bad invocation, and
+never hangs. But it registers only the long flag, so ``-h`` is rejected as an
+unknown argument: the terse user summary the spec asks for is missing entirely.
 """
 
 from __future__ import annotations
@@ -105,11 +98,17 @@ _EPILOG = (
 
 
 def build_parser() -> argparse.ArgumentParser:
+    # THE DEFECT: argparse's automatic help pair is suppressed and only the long
+    # flag is registered, so '-h' reaches the parser as an unknown argument.
     parser = _EnvelopeParser(
         prog="samplegood",
         description="A minimal reference smart tool for conformance testing.",
         epilog=_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        add_help=False,
+    )
+    parser.add_argument(
+        "--help", action="help", help="Show the complete capability listing and exit."
     )
     sub = parser.add_subparsers(dest="verb")
 

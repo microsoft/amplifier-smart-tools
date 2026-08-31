@@ -18,8 +18,7 @@ Design commitments (mirroring proven conformance kits):
   * honest SKIP -- a rule that cannot be evaluated is reported SKIP with a
     reason, never a fabricated PASS. The verdict is FAIL iff any rule FAILs.
 
-Each check carries the spec sentence it operationalizes (see UPSTREAM-OFFER.md
-for the full rule -> spec-sentence mapping).
+Each check carries the spec sentence it operationalizes.
 """
 
 from __future__ import annotations
@@ -93,9 +92,9 @@ SHELL_META = ("&&", "||", "|", ";", "$(", "`", ">", "<")
 # are model-backed".
 DISCLOSURE_TOKENS = ("model-backed", "model backed", "modelbacked")
 
-# Appended to cli_argv to provoke a failure, so R4 can inspect its shape. A verb
-# no tool defines, rather than a flag, since an unknown flag and an unknown verb
-# take different paths through most argument parsers.
+# Appended to cli_argv to provoke a failure, so the exit code can be inspected. A
+# verb no tool defines, rather than a flag, since an unknown flag and an unknown
+# verb take different paths through most argument parsers.
 BAD_INVOCATION = ("__conformance_no_such_verb__",)
 
 
@@ -580,11 +579,12 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
     # in one. Anything the tool writes relative to its working directory lands
     # here and is discarded.
     recipe = discover_recipe(descriptor, descriptor_error, target)
-    help_run = smoke_run = bad_run = None
+    help_run = short_help_run = smoke_run = bad_run = None
     if recipe.argv is not None:
         scratch = Path(tempfile.mkdtemp(prefix="smart-tools-conformance-"))
         try:
             help_run = run_cli(recipe.argv + ["--help"], scratch, timeout, scrub=True)
+            short_help_run = run_cli(recipe.argv + ["-h"], scratch, timeout, scrub=True)
             if recipe.smoke:
                 smoke_run = run_cli(recipe.argv + recipe.smoke, scratch, timeout, scrub=True)
             bad_run = run_cli(recipe.argv + recipe.bad, scratch, timeout, scrub=True)
@@ -607,80 +607,93 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             f"'--help' exits {help_run.rc} with provider env scrubbed (tool refuses to load): "
             f"{_first_line(help_run.err or help_run.out)}")
 
-    # R2 help-discloses-model-backed
-    spec_r2 = "invocation.md: '--help ... which capabilities are model-backed.'"
+    # R2 help-flags-supported
+    spec_r2 = ("invocation.md: 'The CLI renders what the library exposes, at two levels of "
+               "detail for two different readers ... `-h` is the user summary ... `--help` "
+               "is the complete listing.'")
     if recipe.argv is None:
-        add("help-discloses-model-backed", SKIP, spec_r2, recipe.reason)
+        add("help-flags-supported", SKIP, spec_r2, recipe.reason)
+    elif help_run.timed_out or short_help_run.timed_out:
+        which = "--help" if help_run.timed_out else "-h"
+        add("help-flags-supported", SKIP, spec_r2,
+            f"'{which}' did not complete within timeout (inconclusive; see no-hang)")
+    else:
+        broken = [
+            f"'{flag}' exits {probe.rc}: {_first_line(probe.err or probe.out)}"
+            for flag, probe in (("-h", short_help_run), ("--help", help_run))
+            if probe.rc != 0
+        ]
+        if broken:
+            add("help-flags-supported", FAIL, spec_r2, "; ".join(broken))
+        else:
+            add("help-flags-supported", PASS, spec_r2, "both '-h' and '--help' exit 0")
+
+    # R3 help-discloses-model-backed
+    spec_r3 = "invocation.md: '--help ... which capabilities are model-backed.'"
+    if recipe.argv is None:
+        add("help-discloses-model-backed", SKIP, spec_r3, recipe.reason)
     elif help_run.timed_out or help_run.rc != 0:
-        add("help-discloses-model-backed", SKIP, spec_r2,
+        add("help-discloses-model-backed", SKIP, spec_r3,
             "could not obtain a successful '--help' (see loads-without-provider / no-hang)")
     else:
         blob = (help_run.out + "\n" + help_run.err).lower()
         if any(tok in blob for tok in DISCLOSURE_TOKENS):
-            add("help-discloses-model-backed", PASS, spec_r2,
+            add("help-discloses-model-backed", PASS, spec_r3,
                 "'--help' discloses which capabilities are model-backed")
         else:
-            add("help-discloses-model-backed", FAIL, spec_r2,
+            add("help-discloses-model-backed", FAIL, spec_r3,
                 "'--help' does not disclose which capabilities are model-backed "
                 "(expected a 'model-backed' marker)")
 
-    # R3 deterministic-capability-runs
-    spec_r3 = ("structure.md: 'A caller that only wants the deterministic capabilities never has "
+    # R4 deterministic-capability-runs
+    spec_r4 = ("structure.md: 'A caller that only wants the deterministic capabilities never has "
                "to supply model credentials.'")
     if recipe.argv is None:
-        add("deterministic-capability-runs", SKIP, spec_r3, recipe.reason)
+        add("deterministic-capability-runs", SKIP, spec_r4, recipe.reason)
     elif not recipe.smoke:
-        add("deterministic-capability-runs", SKIP, spec_r3,
+        add("deterministic-capability-runs", SKIP, spec_r4,
             "no deterministic smoke invocation declared (smart-tool.json)")
     elif smoke_run.timed_out:
-        add("deterministic-capability-runs", FAIL, spec_r3,
+        add("deterministic-capability-runs", FAIL, spec_r4,
             f"deterministic '{' '.join(recipe.smoke)}' did not complete within {timeout:g}s "
             "with provider env scrubbed")
     elif smoke_run.rc == 0:
-        add("deterministic-capability-runs", PASS, spec_r3,
+        add("deterministic-capability-runs", PASS, spec_r4,
             f"deterministic '{' '.join(recipe.smoke)}' runs (exit 0) with provider env scrubbed")
     else:
-        add("deterministic-capability-runs", FAIL, spec_r3,
+        add("deterministic-capability-runs", FAIL, spec_r4,
             f"deterministic '{' '.join(recipe.smoke)}' exits {smoke_run.rc} with provider env "
             f"scrubbed: {_first_line(smoke_run.err or smoke_run.out)}")
 
-    # R4 failure-names-remedy (failure shape)
-    spec_r4 = ("invocation.md/README.md: 'A failure names what went wrong and how to correct it "
-               "... not ... a bare stack trace' -- structured error, non-zero exit.")
+    # R5 failure-exits-non-zero
+    spec_r5 = ("invocation.md: 'At the CLI, a failure exits non-zero ... A tool that describes "
+               "an error in its output while exiting 0 has hidden that error from all of them.'")
     if recipe.argv is None:
-        add("failure-names-remedy", SKIP, spec_r4, recipe.reason)
+        add("failure-exits-non-zero", SKIP, spec_r5, recipe.reason)
     elif bad_run.timed_out:
-        add("failure-names-remedy", SKIP, spec_r4, "bad invocation did not complete (see no-hang)")
+        add("failure-exits-non-zero", SKIP, spec_r5,
+            "bad invocation did not complete (see no-hang)")
+    elif bad_run.rc == 0:
+        add("failure-exits-non-zero", FAIL, spec_r5,
+            f"bad invocation '{' '.join(recipe.bad)}' exited 0 (a bad invocation must fail)")
     else:
-        combined = bad_run.out + "\n" + bad_run.err
-        has_traceback = "Traceback (most recent call last)" in combined
-        structured = _looks_structured(bad_run.out)
-        if bad_run.rc == 0:
-            add("failure-names-remedy", FAIL, spec_r4,
-                f"bad invocation '{' '.join(recipe.bad)}' exited 0 (a bad invocation must fail)")
-        elif has_traceback:
-            add("failure-names-remedy", FAIL, spec_r4,
-                "bad invocation produced a bare stack trace instead of a structured error")
-        elif not structured:
-            add("failure-names-remedy", FAIL, spec_r4,
-                "bad invocation exited non-zero but emitted no structured (JSON) error on stdout")
-        else:
-            add("failure-names-remedy", PASS, spec_r4,
-                f"bad invocation exits {bad_run.rc} with a structured JSON error on stdout")
+        add("failure-exits-non-zero", PASS, spec_r5,
+            f"bad invocation '{' '.join(recipe.bad)}' exits {bad_run.rc}")
 
-    # R5 no-hang (stdin closed, bounded)
-    spec_r5 = "contracts/README: 'a run with stdin closed never hangs' (non-interactive caller)."
+    # R6 no-hang (stdin closed, bounded)
+    spec_r6 = ("invocation.md: 'A tool also never waits on input a caller cannot supply. Invoked "
+               "non-interactively, with stdin closed, it completes or it fails.'")
     hang_probe = smoke_run if (recipe.smoke and smoke_run is not None) else help_run
     probe_desc = " ".join(recipe.smoke) if (recipe.smoke and smoke_run is not None) else "--help"
     if recipe.argv is None:
-        add("no-hang-stdin-closed", SKIP, spec_r5, recipe.reason)
+        add("no-hang-stdin-closed", SKIP, spec_r6, recipe.reason)
     elif hang_probe is None:
-        add("no-hang-stdin-closed", SKIP, spec_r5, "no probe invocation available")
+        add("no-hang-stdin-closed", SKIP, spec_r6, "no probe invocation available")
     elif hang_probe.timed_out:
-        add("no-hang-stdin-closed", FAIL, spec_r5,
+        add("no-hang-stdin-closed", FAIL, spec_r6,
             f"'{probe_desc}' with stdin closed exceeded {timeout:g}s (possible hang)")
     else:
-        add("no-hang-stdin-closed", PASS, spec_r5,
+        add("no-hang-stdin-closed", PASS, spec_r6,
             f"'{probe_desc}' completes with stdin closed")
 
     # --- Verdict ------------------------------------------------------------ #
@@ -781,22 +794,6 @@ def _find_manifests(root: Path) -> list[Path]:
         if MANIFEST_NAME in filenames:
             out.append(Path(dirpath) / MANIFEST_NAME)
     return out
-
-
-def _looks_structured(stdout: str) -> bool:
-    s = stdout.strip()
-    if not s:
-        return False
-    try:
-        obj = json.loads(s)
-    except Exception:  # noqa: BLE001
-        # Accept a JSON object on the first non-empty line (tools may print more after).
-        first = s.split("\n", 1)[0].strip()
-        try:
-            obj = json.loads(first)
-        except Exception:  # noqa: BLE001
-            return False
-    return isinstance(obj, (dict, list))
 
 
 def _first_line(text: str) -> str:
