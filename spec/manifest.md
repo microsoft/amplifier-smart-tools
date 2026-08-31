@@ -112,6 +112,13 @@ requires:
     install: docs/installing-docker.md
 ```
 
+Every field is required and carries content, except `requires`, which a tool with no
+prerequisites leaves out. A field that is present but empty is not satisfied.
+
+The example fixes each field's shape. `smart_tool_format` is a number, `name`, `version`,
+and `description` are strings, `use_cases` and `platforms` are lists of strings, and
+`requires` is a list of entries.
+
 **`smart_tool_format`** is the manifest schema version, not the tool's version. It exists so
 a reader can tell whether it understands the file at all.
 
@@ -153,4 +160,4 @@ user or agent. Typical contents: when this tool is the right choice and when it 
 sharp edges, worked invocations, and pointers to deeper documentation.
 
 It carries no compatibility guarantee, and nothing may depend on a particular sentence
-being present.
+being present. A tool with nothing to add leaves it empty.
