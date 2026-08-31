@@ -418,8 +418,8 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             fm_error = f"unexpected parse error: {exc}"
 
     # M1 manifest-present
-    manifest_spec = ("manifest.md: 'the descriptor at the distribution root says where the "
-                     "manifest is.'")
+    manifest_spec = ("manifest.md: 'The descriptor at the distribution root names it, so a "
+                     "reader opens one file at a known path and is told where to look next.'")
     if manifest_rel is None:
         add("manifest-present", FAIL, manifest_spec,
             f"{DESCRIPTOR_NAME} does not name a manifest (see descriptor-present)")
@@ -463,20 +463,20 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
                 "only recognised fields present")
 
     # M4 manifest-required-fields
+    # manifest.md fixes a closed set of fields but never designates any of them
+    # required. REQUIRED_FIELDS is this kit's floor, not the spec's, and the citation
+    # says so rather than attributing the rule to a sentence that does not exist.
+    spec_m4 = ("conformance kit: every field except 'requires' is treated as required; "
+               "manifest.md fixes the field set but does not designate required fields")
     if not manifest_ok:
-        add("manifest-required-fields", SKIP,
-            "manifest.md: the frontmatter fields each described as part of the manifest",
-            "manifest not available")
+        add("manifest-required-fields", SKIP, spec_m4, "manifest not available")
     else:
         missing = [k for k in REQUIRED_FIELDS if k not in fm]
         if missing:
-            add("manifest-required-fields", FAIL,
-                "manifest.md: the frontmatter fields each described as part of the manifest",
+            add("manifest-required-fields", FAIL, spec_m4,
                 f"missing required field(s): {', '.join(missing)}")
         else:
-            add("manifest-required-fields", PASS,
-                "manifest.md: the frontmatter fields each described as part of the manifest",
-                "all required fields present")
+            add("manifest-required-fields", PASS, spec_m4, "all required fields present")
 
     # M5 manifest-name-format
     if not manifest_ok or "name" not in fm:
@@ -557,21 +557,17 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
                 f"{len(req)} requires entry(ies) well-formed")
 
     # M8 manifest-single-per-root
+    spec_m8 = ("manifest.md: 'Exactly one manifest per distribution. A second SMART_TOOL.md "
+               "under a distribution root is incorrect and not a valid smart tool.'")
     found = found_manifests
     if len(found) > 1:
         rels = ", ".join(sorted(str(p.relative_to(target)) for p in found))
-        add("manifest-single-per-root", FAIL,
-            "manifest.md: 'Exactly one manifest per distribution. A second SMART_TOOL.md "
-            "beneath a distribution root is incorrect.'",
+        add("manifest-single-per-root", FAIL, spec_m8,
             f"{len(found)} manifests under root: {rels}")
     elif len(found) == 1:
-        add("manifest-single-per-root", PASS,
-            "manifest.md: 'Exactly one manifest per distribution. A second SMART_TOOL.md "
-            "beneath a distribution root is incorrect.'", "exactly one manifest under root")
+        add("manifest-single-per-root", PASS, spec_m8, "exactly one manifest under root")
     else:
-        add("manifest-single-per-root", SKIP,
-            "manifest.md: 'Exactly one manifest per distribution. A second SMART_TOOL.md "
-            "beneath a distribution root is incorrect.'", "no manifest found under root")
+        add("manifest-single-per-root", SKIP, spec_m8, "no manifest found under root")
 
     # --- Runtime gathering -------------------------------------------------- #
     # The tool runs from a scratch directory, never from its own. A conformance
@@ -608,9 +604,12 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             f"{_first_line(help_run.err or help_run.out)}")
 
     # R2 help-flags-supported
-    spec_r2 = ("invocation.md: 'The CLI renders what the library exposes, at two levels of "
-               "detail for two different readers ... `-h` is the user summary ... `--help` "
-               "is the complete listing.'")
+    # The spec asks that both flags be answered, not that they differ: "Depending on the
+    # tool and structure of it, `-h` and `--help` are perfectly acceptable to be
+    # equivalent." A two-level split is what large surfaces usually want, not a rule, so
+    # this checks that each flag is recognised and neither is an error.
+    spec_r2 = ("invocation.md: '`-h` is the user summary ... `--help` is the complete "
+               "listing ... `-h` and `--help` are perfectly acceptable to be equivalent.'")
     if recipe.argv is None:
         add("help-flags-supported", SKIP, spec_r2, recipe.reason)
     elif help_run.timed_out or short_help_run.timed_out:
@@ -760,7 +759,7 @@ def _unresolved_executable(exe: str, target: Path) -> str | None:
     if shutil.which(exe) is None:
         return (
             f"cli_argv[0] '{exe}' was not found on PATH -- the tool must be installed "
-            "or runnable before conformance runs (packaging.md: the kit never installs)"
+            "or runnable before conformance runs (this kit never installs anything)"
         )
     return None
 

@@ -15,8 +15,9 @@ uv run conformance/run.py <path-to-a-smart-tool>
 ```
 
 `<path-to-a-smart-tool>` is a **distribution root**: the directory that holds the
-package definition (`pyproject.toml` / `package.json`). The kit searches it for
-the one `SMART_TOOL.md` the tool ships.
+package definition (`pyproject.toml` / `package.json`). The descriptor at that
+root names the one `SMART_TOOL.md` the tool ships, so the kit is told where to
+look rather than searching for it.
 
 ## Output contract
 
@@ -37,7 +38,9 @@ the one `SMART_TOOL.md` the tool ships.
 
 ## What it checks
 
-Fifteen rules, each carrying the spec sentence it operationalizes.
+Fifteen rules, each carrying the spec sentence it operationalizes. Where a rule
+goes beyond the spec, it says so instead of citing a sentence that does not
+exist.
 
 | Rule id | Enforces |
 |---|---|
@@ -45,14 +48,14 @@ Fifteen rules, each carrying the spec sentence it operationalizes.
 | `manifest-present` | The manifest exists at the path the descriptor names, inside the distribution. |
 | `manifest-frontmatter-parses` | It opens with a closed YAML frontmatter fence that parses. |
 | `manifest-fields-closed` | No field outside the closed set `smart_tool_format, name, version, description, use_cases, platforms, requires`. |
-| `manifest-required-fields` | The required fields are present. |
+| `manifest-required-fields` | Every field except `requires` is present. The spec fixes the field set without designating any required, so this floor is the kit's. |
 | `manifest-name-format` | `name` is lowercase alphanumeric and hyphens. |
 | `manifest-version-matches-package` | Manifest `version` equals the package-definition version. |
 | `manifest-requires-shape` | Each `requires` entry is `{name, purpose, install[, optional]}`; `install` is a doc reference, never a command. |
 | `manifest-single-per-root` | Exactly one `SMART_TOOL.md` under the root, not counting nested distributions. |
 | `loads-without-provider` | With provider env scrubbed, the tool loads (`--help` exits 0) -- it does not refuse to load. |
-| `help-flags-supported` | Both `-h` and `--help` are present and both exit 0. |
-| `help-discloses-model-backed` | `--help` discloses which capabilities are model-backed. |
+| `help-flags-supported` | Both `-h` and `--help` are answered and exit 0. The spec permits them to render the same text, so their content is not compared. |
+| `help-discloses-model-backed` | `--help` discloses which capabilities are model-backed, marked with the literal words `model-backed` (or `model backed`). |
 | `deterministic-capability-runs` | A declared deterministic capability runs with provider env scrubbed. |
 | `failure-exits-non-zero` | A bad invocation exits non-zero. |
 | `no-hang-stdin-closed` | A run with stdin closed completes within the bounded timeout. |
@@ -77,7 +80,8 @@ at the distribution root (see `spec/packaging.md`):
 - `manifest` -- where `SMART_TOOL.md` lives, relative to the descriptor.
 - `cli_argv` -- how to launch the CLI. An element naming a file inside the
   distribution is resolved against the root before the tool is started.
-- `deterministic_smoke` -- a side-effect-free deterministic invocation.
+- `deterministic_smoke` -- an invocation of a capability that runs with no
+  provider configured.
 
 To exercise `failure-exits-non-zero` the kit appends a verb no tool defines,
 `__conformance_no_such_verb__`, and inspects the exit code of the rejection.
@@ -86,7 +90,8 @@ The tool is run from a scratch directory, never from its own. A conformance run
 inspects a distribution and must not be able to leave anything behind in one, so
 whatever the tool writes relative to its working directory lands in the scratch
 directory and is discarded. A tool that expects to find its own files by walking
-up from the working directory will not, which is the behaviour being checked.
+up from the working directory will not find them there. No rule inspects what a
+tool reads or writes; the scratch directory is containment for the run.
 
 This is the kit's only source. It never installs the tool under test: present it
 with one that already runs, from source or installed onto the path. Without a
@@ -98,10 +103,10 @@ is not counted against the parent.
 
 ### Provider scrubbing
 
-Before the `loads-without-provider` and `deterministic-capability-runs` probes,
-the kit removes provider/model environment variables (anything matching
-`*_API_KEY`, `ANTHROPIC*`, `OPENAI*`, `*_MODEL`, `*PROVIDER*`, ...) so it observes
-the tool as a caller with **no** model credentials would.
+Every probe the kit runs -- both help flags, the deterministic smoke invocation,
+and the bad invocation -- runs with provider/model environment variables removed
+(anything matching `*_API_KEY`, `ANTHROPIC*`, `OPENAI*`, `*_MODEL`, `*PROVIDER*`,
+...) so it observes the tool as a caller with **no** model credentials would.
 
 ## Fixtures (proof of discrimination)
 
