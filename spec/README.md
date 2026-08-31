@@ -34,7 +34,7 @@ Smart tools are built on three principles that inform everything else in this sp
 
 2. **The AI is what makes it smart.** A smart tool has to do something genuinely powered by
    a model. If every path through it is deterministic code, it is a tool, and that is fine,
-   but it is not a smart tool. The straight code paths still run with no provider
+   but it is not a smart tool. The straight code paths still run with no AI provider
    configured, and a caller who never touches the smart commands never needs model
    credentials.
 

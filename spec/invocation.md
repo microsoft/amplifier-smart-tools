@@ -34,8 +34,9 @@ library in the same way.
 
 Most of this is native to a library. Signatures and docstrings carry the names, arguments,
 types, and return shapes, and a caller holding the library reads them the way it reads any
-other dependency. Which capabilities are model-backed is not native to any language, and a
-smart tool declares it in a form a caller can read programmatically.
+other dependency. Based on the documentation and help text of the library and other surfaces,
+it should be clear which functionality is AI-enabled. If it is genuinely ambiguous, it can
+be explicitly stated which capabilities require AI.
 
 The CLI renders what the library exposes, at two levels of detail for two different readers.
 Depending on the tool and structure of it, `-h` and `--help` are perfectly acceptable
@@ -45,9 +46,9 @@ to be equivalent.
 what someone types when they want to remember the name of a flag.
 
 `--help` is the complete listing, written for an agent deciding how to call the tool. Every
-capability, its arguments and their types, what it returns, and which capabilities are
-model-backed. It is longer than a person wants to read, and complete rather than selective.
-`--help` is usually different from `-h` for tools who have large surfaces.
+capability, its arguments and their types and what it returns. It is longer than a person wants
+to read, and complete rather than selective. It is usually different from `-h` for tools who
+have large surfaces.
 
 ## Passing context in
 
