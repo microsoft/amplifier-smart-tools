@@ -25,6 +25,7 @@ EXPECTED_PRIMARY = {
     "sample-bad-frontmatter-broken": "manifest-frontmatter-parses",
     "sample-bad-extra-field": "manifest-fields-closed",
     "sample-bad-missing-version": "manifest-required-fields",
+    "sample-bad-field-shape": "manifest-field-shapes",
     "sample-bad-name-uppercase": "manifest-name-format",
     "sample-bad-version-mismatch": "manifest-version-matches-package",
     "sample-bad-requires-install-command": "manifest-requires-shape",

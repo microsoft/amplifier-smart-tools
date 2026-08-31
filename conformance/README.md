@@ -10,7 +10,7 @@ fixtures under `fixtures/`.
 ## Quick start
 
 ```bash
-# stdlib only -- no dependencies, no network
+# no install step, no network -- uv resolves the inline dependencies itself
 uv run conformance/run.py <path-to-a-smart-tool>
 ```
 
@@ -38,7 +38,7 @@ look rather than searching for it.
 
 ## What it checks
 
-Fifteen rules, each carrying the spec sentence it operationalizes. Where a rule
+Sixteen rules, each carrying the spec sentence it operationalizes. Where a rule
 goes beyond the spec, it says so instead of citing a sentence that does not
 exist.
 
@@ -48,7 +48,8 @@ exist.
 | `manifest-present` | The manifest exists at the path the descriptor names, inside the distribution, and is named `SMART_TOOL.md`. |
 | `manifest-frontmatter-parses` | It opens with a closed YAML frontmatter fence that parses. |
 | `manifest-fields-closed` | No field outside the closed set `smart_tool_format, name, version, description, use_cases, platforms, requires`. |
-| `manifest-required-fields` | Every field except `requires` is present. The spec fixes the field set without designating any required, so this floor is the kit's. |
+| `manifest-required-fields` | Every field except `requires` is present and carries content. |
+| `manifest-field-shapes` | Every field has the shape the spec's example gives it. |
 | `manifest-name-format` | `name` is lowercase alphanumeric and hyphens. |
 | `manifest-version-matches-package` | Manifest `version` equals the package-definition version. |
 | `manifest-requires-shape` | Each `requires` entry is `{name, purpose, install[, optional]}`; `install` is a doc reference, never a command. |
@@ -60,9 +61,14 @@ exist.
 | `failure-exits-non-zero` | A bad invocation exits non-zero. |
 | `no-hang-stdin-closed` | A run with stdin closed completes within the bounded timeout. |
 
-The descriptor rule and the eight `manifest-*` rules are pure file inspection and
+The descriptor rule and the nine `manifest-*` rules are pure file inspection and
 run against any tool in any language. The six runtime rules need to *invoke* the
 tool (see below); when no invocation is possible they SKIP honestly.
+
+The frontmatter is parsed as YAML and validated against a schema declared once,
+in `run.py`. A validation error is routed to whichever rule owns it, so the kit
+still reports per rule rather than collapsing every manifest defect into one
+verdict.
 
 ## The descriptor
 
@@ -124,8 +130,11 @@ the primary rule is *among* the failures.
 ## Running the kit's own tests
 
 ```bash
-uv run --with pytest pytest -q conformance/
+uv run --with pytest --with-requirements conformance/run.py pytest -q conformance/
 ```
+
+`--with-requirements` reads the inline dependency block in `run.py`, so the test
+run and the kit itself resolve the same dependency set from one declaration.
 
 The tests cover the frontmatter parser and helpers directly, and run the kit
 end-to-end against every fixture.
