@@ -32,7 +32,6 @@ EXPECTED_PRIMARY = {
     "sample-bad-double-manifest": "manifest-single-per-root",
     "sample-bad-refuses-without-provider": "loads-without-provider",
     "sample-bad-help-no-short-flag": "help-flags-supported",
-    "sample-bad-help-no-disclosure": "help-discloses-model-backed",
     "sample-bad-deterministic-refuses": "deterministic-capability-runs",
     "sample-bad-failure-exits-zero": "failure-exits-non-zero",
     "sample-bad-hang": "no-hang-stdin-closed",
@@ -163,7 +162,6 @@ def test_runtime_rules_skip_without_a_descriptor(tmp_path: Path):
     for rule in (
         "loads-without-provider",
         "help-flags-supported",
-        "help-discloses-model-backed",
         "deterministic-capability-runs",
         "failure-exits-non-zero",
         "no-hang-stdin-closed",

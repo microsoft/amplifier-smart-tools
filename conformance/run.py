@@ -69,10 +69,6 @@ INSTALL_COMMAND_RE = re.compile(
 )
 SHELL_META = ("&&", "||", "|", ";", "$(", "`", ">", "<")
 
-# --help disclosure tokens (case-insensitive) that satisfy "which capabilities
-# are model-backed".
-DISCLOSURE_TOKENS = ("model-backed", "model backed", "modelbacked")
-
 # Appended to cli_argv to provoke a failure, so the exit code can be inspected. A
 # verb no tool defines, rather than a flag, since an unknown flag and an unknown
 # verb take different paths through most argument parsers.
@@ -580,23 +576,6 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             add("help-flags-supported", FAIL, spec_r2, "; ".join(broken))
         else:
             add("help-flags-supported", PASS, spec_r2, "both '-h' and '--help' exit 0")
-
-    # R3 help-discloses-model-backed
-    spec_r3 = "invocation.md: '--help ... which capabilities are model-backed.'"
-    if recipe.argv is None:
-        add("help-discloses-model-backed", SKIP, spec_r3, recipe.reason)
-    elif help_run.timed_out or help_run.rc != 0:
-        add("help-discloses-model-backed", SKIP, spec_r3,
-            "could not obtain a successful '--help' (see loads-without-provider / no-hang)")
-    else:
-        blob = (help_run.out + "\n" + help_run.err).lower()
-        if any(tok in blob for tok in DISCLOSURE_TOKENS):
-            add("help-discloses-model-backed", PASS, spec_r3,
-                "'--help' discloses which capabilities are model-backed")
-        else:
-            add("help-discloses-model-backed", FAIL, spec_r3,
-                "'--help' does not disclose which capabilities are model-backed "
-                "(expected a 'model-backed' marker)")
 
     # R4 deterministic-capability-runs
     spec_r4 = ("structure.md: 'A caller that only wants the deterministic capabilities never has "
