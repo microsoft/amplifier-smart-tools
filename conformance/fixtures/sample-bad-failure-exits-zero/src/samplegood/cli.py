@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""DEFECT: a bad invocation crashes with a bare stack trace.
+"""DEFECT: a bad invocation reports an error but exits 0.
 
-Violates: failure-names-remedy.
-The tool loads fine, --help discloses model-backed capabilities, and the
-deterministic verb runs -- but an unrecognised verb raises an uncaught
-exception, handing the caller a Python traceback on stderr instead of a
-structured error that names the remedy.
+Violates: failure-exits-non-zero.
+The tool loads fine, answers both -h and --help, discloses its model-backed
+capability, and runs its deterministic verb -- but an unrecognised verb prints
+an error and returns 0. The error is hidden from every script, pipeline, and
+agent harness, all of which check the exit code and see success.
 """
 
 from __future__ import annotations
@@ -46,8 +46,19 @@ def main(argv: list[str] | None = None) -> int:
     if not args.verb:
         _emit({"error": {"code": "no_capability", "message": "no verb", "remedy": "see --help"}})
         return 2
-    # THE DEFECT: unknown verb -> KeyError, uncaught -> bare traceback + exit 1.
-    handler = _DISPATCH[args.verb]
+    handler = _DISPATCH.get(args.verb)
+    if handler is None:
+        # THE DEFECT: the error is described in the output but the process exits 0.
+        _emit(
+            {
+                "error": {
+                    "code": "unknown_capability",
+                    "message": f"no such capability: {args.verb}",
+                    "remedy": "Run 'samplegood --help' to see the available capabilities.",
+                }
+            }
+        )
+        return 0
     return handler(args.text)
 
 

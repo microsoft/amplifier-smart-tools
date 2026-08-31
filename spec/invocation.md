@@ -44,8 +44,6 @@ what someone types when they want to remember the name of a flag.
 capability, its arguments and their types, what it returns, and which capabilities are
 model-backed. It is longer than a person wants to read, and complete rather than selective.
 
-The two are not aliases. Neither adds anything the library does not already expose.
-
 Self-description covers how to drive the tool. The manifest covers whether to reach for it
 at all, and is reachable from the library in the same way.
 
@@ -74,11 +72,19 @@ selects and packages the context should be code the caller controls.
 
 ## What comes back
 
-A result a caller can act on without parsing prose. At the library level, 
-that means ordinary return values. At the CLI, it means structured output on stdout.
-The test is whether the caller can hand the result to the next step programmatically. 
-A model-backed capability that returns a paragraph of explanation has moved the work of 
-understanding back onto the caller.
+A result a caller can act on without parsing prose. At the library level, that means
+ordinary return values. At the CLI, structured output on stdout is the encouraged default,
+because a caller that can parse a result can chain it. Plain text is fine where the result
+is genuinely a scalar or a single line and a format would be ceremony.
+
+The test is whether the caller can hand the result to the next step without guessing. A
+model-backed capability that returns a paragraph of explanation where a value was asked for
+has moved the work of understanding back onto the caller.
+
+Where a tool emits machine-readable output, stdout is the channel for it and stderr is the
+channel for anything addressed to a human: progress, warnings, summaries. Splitting by
+audience rather than by severity keeps a piped stdout parseable without suppressing what a
+person watching the run needs to see.
 
 Where a capability produces an artifact, a profile, a document, a configuration, the result
 identifies the artifact rather than embedding it in a message.
@@ -99,6 +105,15 @@ pull request, or a published package without anyone deciding they should.
 
 Failures are loud and they name the remedy. A caller should never have to infer what went
 wrong from an empty result.
+
+At the CLI, a failure exits non-zero. This is the one part of a failure a caller can rely on
+without parsing anything, and it is what every script, pipeline, and agent harness already
+checks. A tool that describes an error in its output while exiting 0 has hidden that error
+from all of them.
+
+A tool also never waits on input a caller cannot supply. Invoked non-interactively, with
+stdin closed, it completes or it fails, rather than blocking on a prompt that the agent on
+the other end has no way to answer.
 
 Three cases are common enough to state:
 

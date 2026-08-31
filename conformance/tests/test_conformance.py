@@ -29,9 +29,10 @@ EXPECTED_PRIMARY = {
     "sample-bad-requires-install-command": "manifest-requires-shape",
     "sample-bad-double-manifest": "manifest-single-per-root",
     "sample-bad-refuses-without-provider": "loads-without-provider",
+    "sample-bad-help-no-short-flag": "help-flags-supported",
     "sample-bad-help-no-disclosure": "help-discloses-model-backed",
     "sample-bad-deterministic-refuses": "deterministic-capability-runs",
-    "sample-bad-failure-traceback": "failure-names-remedy",
+    "sample-bad-failure-exits-zero": "failure-exits-non-zero",
     "sample-bad-hang": "no-hang-stdin-closed",
 }
 
@@ -159,9 +160,10 @@ def test_runtime_rules_skip_without_a_descriptor(tmp_path: Path):
     by_id = {c["id"]: c["status"] for c in result["checks"]}
     for rule in (
         "loads-without-provider",
+        "help-flags-supported",
         "help-discloses-model-backed",
         "deterministic-capability-runs",
-        "failure-names-remedy",
+        "failure-exits-non-zero",
         "no-hang-stdin-closed",
     ):
         assert by_id[rule] == run.SKIP, f"{rule} should SKIP without a descriptor"

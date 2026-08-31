@@ -37,8 +37,7 @@ the one `SMART_TOOL.md` the tool ships.
 
 ## What it checks
 
-Fourteen rules, each carrying the spec sentence it operationalizes (full mapping
-in [`UPSTREAM-OFFER.md`](UPSTREAM-OFFER.md)).
+Fifteen rules, each carrying the spec sentence it operationalizes.
 
 | Rule id | Enforces |
 |---|---|
@@ -52,13 +51,14 @@ in [`UPSTREAM-OFFER.md`](UPSTREAM-OFFER.md)).
 | `manifest-requires-shape` | Each `requires` entry is `{name, purpose, install[, optional]}`; `install` is a doc reference, never a command. |
 | `manifest-single-per-root` | Exactly one `SMART_TOOL.md` under the root, not counting nested distributions. |
 | `loads-without-provider` | With provider env scrubbed, the tool loads (`--help` exits 0) -- it does not refuse to load. |
+| `help-flags-supported` | Both `-h` and `--help` are present and both exit 0. |
 | `help-discloses-model-backed` | `--help` discloses which capabilities are model-backed. |
 | `deterministic-capability-runs` | A declared deterministic capability runs with provider env scrubbed. |
-| `failure-names-remedy` | A bad invocation yields a structured JSON error + non-zero exit, not a bare stack trace. |
+| `failure-exits-non-zero` | A bad invocation exits non-zero. |
 | `no-hang-stdin-closed` | A run with stdin closed completes within the bounded timeout. |
 
 The descriptor rule and the eight `manifest-*` rules are pure file inspection and
-run against any tool in any language. The five runtime rules need to *invoke* the
+run against any tool in any language. The six runtime rules need to *invoke* the
 tool (see below); when no invocation is possible they SKIP honestly.
 
 ## The descriptor
@@ -79,8 +79,8 @@ at the distribution root (see `spec/packaging.md`):
   distribution is resolved against the root before the tool is started.
 - `deterministic_smoke` -- a side-effect-free deterministic invocation.
 
-To exercise `failure-names-remedy` the kit appends a verb no tool defines,
-`__conformance_no_such_verb__`, and inspects how the rejection is shaped.
+To exercise `failure-exits-non-zero` the kit appends a verb no tool defines,
+`__conformance_no_such_verb__`, and inspects the exit code of the rejection.
 
 The tool is run from a scratch directory, never from its own. A conformance run
 inspects a distribution and must not be able to leave anything behind in one, so
@@ -90,7 +90,7 @@ up from the working directory will not, which is the behaviour being checked.
 
 This is the kit's only source. It never installs the tool under test: present it
 with one that already runs, from source or installed onto the path. Without a
-descriptor, `descriptor-present` FAILs and the five runtime rules SKIP rather
+descriptor, `descriptor-present` FAILs and the six runtime rules SKIP rather
 than passing or failing.
 
 A subdirectory with its own descriptor is a nested distribution, and its manifest

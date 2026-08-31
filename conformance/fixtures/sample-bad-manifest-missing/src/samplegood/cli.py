@@ -8,9 +8,10 @@ kit as its known-good fixture. It exists to be *passed* by every rule:
   * Its deterministic verb (``stats``) runs with no model provider configured.
   * Its model-backed verb (``summarize``) fails loudly with a named remedy when
     no provider is configured -- it never silently degrades.
-  * ``--help`` discloses which capabilities are model-backed.
-  * A bad invocation emits a structured JSON error envelope on stdout and exits
-    non-zero -- never a bare stack trace.
+  * Both ``-h`` and ``--help`` are answered, and ``--help`` discloses which
+    capabilities are model-backed.
+  * A bad invocation exits non-zero, carrying a structured JSON error envelope
+    on stdout.
   * Nothing here reads stdin, so a run with stdin closed never hangs.
 """
 
@@ -44,10 +45,9 @@ def _emit_error(code: str, message: str, remedy: str, exit_code: int) -> int:
 class _EnvelopeParser(argparse.ArgumentParser):
     """argparse parser that reports bad invocations as JSON envelopes on stdout.
 
-    The spec requires failures to be structured and to name a remedy, never a
-    bare usage dump on stderr or a stack trace. So we intercept argparse's
-    error path and emit the same ``{"error": {...}}`` envelope every other
-    failure uses.
+    Structured output is the encouraged default for a result a caller can chain,
+    so this fixture applies it to the error path too rather than letting argparse
+    print a usage dump. The exit code stays non-zero either way.
     """
 
     def error(self, message: str):  # noqa: D401 - argparse contract
