@@ -565,6 +565,10 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
                 f"{len(req)} requires entry(ies) well-formed")
 
     # M8 manifest-single-per-root
+    # The question is duplication, not existence. Whether a manifest is there at
+    # all, and whether it is named correctly, is manifest-present's -- and that
+    # rule fails when it is not. So finding none here reports no duplicate rather
+    # than skipping: zero manifests is not two.
     spec_m8 = ("manifest.md: 'Exactly one manifest per distribution. A second SMART_TOOL.md "
                "under a distribution root is incorrect and not a valid smart tool.'")
     found = found_manifests
@@ -575,7 +579,8 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
     elif len(found) == 1:
         add("manifest-single-per-root", PASS, spec_m8, "exactly one manifest under root")
     else:
-        add("manifest-single-per-root", SKIP, spec_m8, "no manifest found under root")
+        add("manifest-single-per-root", PASS, spec_m8,
+            "no second manifest under root (whether one exists is manifest-present)")
 
     # --- Runtime gathering -------------------------------------------------- #
     # The tool runs from a scratch directory, never from its own. A conformance

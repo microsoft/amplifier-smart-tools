@@ -52,7 +52,7 @@ exist.
 | `manifest-name-format` | `name` is lowercase alphanumeric and hyphens. |
 | `manifest-version-matches-package` | Manifest `version` equals the package-definition version. |
 | `manifest-requires-shape` | Each `requires` entry is `{name, purpose, install[, optional]}`; `install` is a doc reference, never a command. |
-| `manifest-single-per-root` | Exactly one `SMART_TOOL.md` under the root, not counting nested distributions. |
+| `manifest-single-per-root` | No second `SMART_TOOL.md` under the root, not counting nested distributions. Whether one exists at all is `manifest-present`. |
 | `loads-without-provider` | With provider env scrubbed, the tool loads (`--help` exits 0) -- it does not refuse to load. |
 | `help-flags-supported` | Both `-h` and `--help` are answered and exit 0. The spec permits them to render the same text, so their content is not compared. |
 | `help-discloses-model-backed` | `--help` discloses which capabilities are model-backed, marked with the literal words `model-backed` (or `model backed`). |
