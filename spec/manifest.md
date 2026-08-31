@@ -11,12 +11,9 @@ tool rather than holding its own copy.
 
 ## Selection, not operation
 
-The manifest answers "is this the tool for my job, and can I run it here?"
-
-It does not answer "how do I call it." That is `--help` and the library's own signatures.
-
-The practical test: a field belongs in the manifest if a caller needs it *before* deciding
-to install or invoke the tool. Everything else belongs in the tool.
+The manifest answers "is this the tool for my job, and can I run it here?" It does not answer
+"how do I call it." The practical test: a field belongs in the manifest if a caller needs it
+*before* deciding to install or invoke the tool. Everything else belongs in the tool.
 
 ## Where it lives
 

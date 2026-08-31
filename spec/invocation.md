@@ -28,7 +28,9 @@ correctly.
 ## Self-description
 
 A smart tool can describe its own surface: the capabilities it offers, their arguments and
-types, what each returns, and which of them are model-backed.
+types, what each returns, and which of them are model-backed. Self-description covers how to
+drive the tool. The manifest covers whether to reach for it at all, and is reachable from the
+library in the same way.
 
 Most of this is native to a library. Signatures and docstrings carry the names, arguments,
 types, and return shapes, and a caller holding the library reads them the way it reads any
@@ -36,6 +38,8 @@ other dependency. Which capabilities are model-backed is not native to any langu
 smart tool declares it in a form a caller can read programmatically.
 
 The CLI renders what the library exposes, at two levels of detail for two different readers.
+Depending on the tool and structure of it, `-h` and `--help` are perfectly acceptable
+to be equivalent.
 
 `-h` is the user summary. Terse and scannable: the capabilities and a line about each. It is
 what someone types when they want to remember the name of a flag.
@@ -43,9 +47,7 @@ what someone types when they want to remember the name of a flag.
 `--help` is the complete listing, written for an agent deciding how to call the tool. Every
 capability, its arguments and their types, what it returns, and which capabilities are
 model-backed. It is longer than a person wants to read, and complete rather than selective.
-
-Self-description covers how to drive the tool. The manifest covers whether to reach for it
-at all, and is reachable from the library in the same way.
+`--help` is usually different from `-h` for tools who have large surfaces.
 
 ## Passing context in
 
@@ -68,7 +70,10 @@ matching what agent delegation already offers.
 Assembly should be mechanical. When an agent composes the payload by deciding what seems
 relevant, the tool's result becomes a function of that agent's summarizing rather than of
 the material itself, and two callers with identical inputs get different answers. Whatever
-selects and packages the context should be code the caller controls.
+selects and packages the context should be code the caller controls. The tool can decide
+if its own intelligence takes advantage of the working directory with tools like read, bash,
+etc. as another means of providing context. The tool's documentation should make it clear
+how it works and how to configure permissions and scope of actions.
 
 ## What comes back
 
