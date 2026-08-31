@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.11"
-# dependencies = []
+# dependencies = ["pyyaml>=6", "pydantic>=2"]
 # ///
 """smart-tools conformance kit -- run.py
 
@@ -13,7 +13,8 @@ from the spec's must / must-not prose.
   usage:  uv run conformance/run.py <tool-dir> [--timeout SECONDS] [--json-only]
 
 Design commitments (mirroring proven conformance kits):
-  * stdlib only -- no third-party dependency, no network access;
+  * no network access, and no install step: dependencies are declared inline
+    above, so `uv run conformance/run.py` resolves them itself;
   * a JSON verdict on stdout, a human summary on stderr, exit 0 (pass) / 1 (fail);
   * honest SKIP -- a rule that cannot be evaluated is reported SKIP with a
     reason, never a fabricated PASS. The verdict is FAIL iff any rule FAILs.
@@ -34,6 +35,10 @@ import tempfile
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
+from typing import Annotated
+
+import yaml
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -41,30 +46,6 @@ SKIP = "SKIP"
 
 MANIFEST_NAME = "SMART_TOOL.md"
 DESCRIPTOR_NAME = "smart-tool.json"
-
-# The manifest frontmatter is a closed set. "Fields not listed here are not part
-# of the manifest." (manifest.md)
-ALLOWED_FIELDS = (
-    "smart_tool_format",
-    "name",
-    "version",
-    "description",
-    "use_cases",
-    "platforms",
-    "requires",
-)
-# `requires` is allowed to be absent for a tool with no prerequisites; every
-# other field is described as part of the frontmatter and is required.
-REQUIRED_FIELDS = (
-    "smart_tool_format",
-    "name",
-    "version",
-    "description",
-    "use_cases",
-    "platforms",
-)
-REQUIRES_ENTRY_KEYS = ("name", "purpose", "install", "optional")
-REQUIRES_ENTRY_REQUIRED = ("name", "purpose", "install")
 
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
@@ -87,10 +68,6 @@ INSTALL_COMMAND_RE = re.compile(
     re.IGNORECASE,
 )
 SHELL_META = ("&&", "||", "|", ";", "$(", "`", ">", "<")
-
-# --help disclosure tokens (case-insensitive) that satisfy "which capabilities
-# are model-backed".
-DISCLOSURE_TOKENS = ("model-backed", "model backed", "modelbacked")
 
 # Appended to cli_argv to provoke a failure, so the exit code can be inspected. A
 # verb no tool defines, rather than a flag, since an unknown flag and an unknown
@@ -118,14 +95,18 @@ class Recipe:
 
 
 # --------------------------------------------------------------------------- #
-# Minimal YAML-frontmatter parser (manifest subset, stdlib only)
+# Manifest frontmatter: fence extraction, YAML parse, schema validation
 # --------------------------------------------------------------------------- #
 class FrontmatterError(ValueError):
     pass
 
 
 def extract_frontmatter(text: str) -> str:
-    """Return the YAML frontmatter block, or raise FrontmatterError."""
+    """Return the YAML frontmatter block, or raise FrontmatterError.
+
+    Finding the fence is not YAML's job, so it stays here. What sits between the
+    fences is handed to a real parser.
+    """
     # Tolerate a leading BOM / blank lines before the opening fence.
     lines = text.split("\n")
     i = 0
@@ -143,130 +124,99 @@ def extract_frontmatter(text: str) -> str:
     raise FrontmatterError("frontmatter fence is not closed with a second '---'")
 
 
-def _scalar(raw: str):
-    s = raw.strip()
-    if s == "":
-        return ""
-    if (s[0] == s[-1]) and s[0] in ("'", '"') and len(s) >= 2:
-        return s[1:-1]
-    low = s.lower()
-    if low in ("true", "false"):
-        return low == "true"
-    if low in ("null", "~"):
-        return None
-    if re.fullmatch(r"-?\d+", s):
-        return int(s)
-    return s
-
-
-def _indent(line: str) -> int:
-    return len(line) - len(line.lstrip(" "))
-
-
 def parse_frontmatter(text: str) -> dict:
-    """Parse the manifest frontmatter subset into a dict.
+    """Parse the frontmatter block as YAML.
 
-    Supports top-level scalars, folded block scalars (`key: >`), block sequences
-    of scalars, and block sequences of mappings (used by `requires`). This is
-    not a general YAML engine; malformed input raises FrontmatterError, which
-    the kit reports as a manifest-parse failure.
+    A manifest is judged by what YAML says it means, not by what a subset parser
+    happens to recognise. Anything the parser rejects is reported as a
+    manifest-frontmatter-parses failure carrying the parser's own reason.
     """
-    raw_lines = [ln for ln in text.split("\n")]
-    # Retain structure but drop blank and full-line comment lines.
-    lines = [ln for ln in raw_lines if ln.strip() != "" and not ln.lstrip().startswith("#")]
-    pos = 0
-
-    def parse_map(base_indent: int):
-        nonlocal pos
-        result: dict = {}
-        while pos < len(lines):
-            line = lines[pos]
-            ind = _indent(line)
-            if ind < base_indent:
-                break
-            if ind > base_indent:
-                raise FrontmatterError(f"unexpected indentation: {line!r}")
-            content = line.strip()
-            if content.startswith("- "):
-                # A sequence at map level is not valid here.
-                raise FrontmatterError(f"unexpected sequence item at mapping level: {line!r}")
-            if ":" not in content:
-                raise FrontmatterError(f"expected 'key: value', got {line!r}")
-            key, _, rest = content.partition(":")
-            key = key.strip()
-            rest = rest.strip()
-            pos += 1
-            if rest in (">", "|", ">-", "|-"):
-                result[key] = parse_folded(base_indent)
-            elif rest == "":
-                # Nested block: sequence or mapping (or empty).
-                if pos < len(lines) and _indent(lines[pos]) > base_indent:
-                    nxt = lines[pos].strip()
-                    if nxt.startswith("- "):
-                        result[key] = parse_seq(_indent(lines[pos]))
-                    else:
-                        result[key] = parse_map(_indent(lines[pos]))
-                else:
-                    result[key] = None
-            else:
-                result[key] = _scalar(rest)
-        return result
-
-    def parse_folded(key_indent: int) -> str:
-        nonlocal pos
-        parts: list[str] = []
-        while pos < len(lines) and _indent(lines[pos]) > key_indent:
-            parts.append(lines[pos].strip())
-            pos += 1
-        return " ".join(parts)
-
-    def parse_seq(seq_indent: int):
-        nonlocal pos
-        items: list = []
-        while pos < len(lines):
-            line = lines[pos]
-            ind = _indent(line)
-            if ind != seq_indent or not line.strip().startswith("- "):
-                break
-            item_body = line.strip()[2:]
-            if ":" in item_body and not (item_body[0] in ("'", '"')):
-                # Sequence of mappings. First key is inline after "- ".
-                entry: dict = {}
-                key, _, rest = item_body.partition(":")
-                entry[key.strip()] = _scalar(rest.strip()) if rest.strip() else None
-                # The mapping's key column is where item_body begins.
-                map_indent = seq_indent + 2
-                pos += 1
-                while pos < len(lines) and _indent(lines[pos]) >= map_indent and not lines[pos].strip().startswith("- "):
-                    key_indent = _indent(lines[pos])
-                    sub = lines[pos].strip()
-                    if ":" not in sub:
-                        raise FrontmatterError(f"expected 'key: value' in sequence mapping, got {lines[pos]!r}")
-                    k, _, v = sub.partition(":")
-                    v = v.strip()
-                    pos += 1
-                    if v in (">", "|", ">-", "|-"):
-                        # A folded/literal block scalar INSIDE a sequence mapping
-                        # (e.g. `requires: - name: .. / purpose: > / install: ..`).
-                        # Consume the deeper-indented continuation lines as the
-                        # value, mirroring the top-level `parse_folded`. Without
-                        # this the parser wrongly reported a perfectly valid
-                        # manifest (any `requires` entry whose `purpose:` is a
-                        # folded scalar) as unparseable -- a false negative that
-                        # condemned a correct tool.
-                        entry[k.strip()] = parse_folded(key_indent)
-                    else:
-                        entry[k.strip()] = _scalar(v) if v else None
-                items.append(entry)
-            else:
-                items.append(_scalar(item_body))
-                pos += 1
-        return items
-
-    if not lines:
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise FrontmatterError(" ".join(str(exc).split())) from exc
+    if data is None:
         return {}
-    data = parse_map(_indent(lines[0]))
+    if not isinstance(data, dict):
+        raise FrontmatterError(f"frontmatter is a {type(data).__name__}, not a mapping")
     return data
+
+
+def _non_empty(value: str) -> str:
+    if not value.strip():
+        raise ValueError("is present but empty")
+    return value
+
+
+NonEmptyStr = Annotated[str, AfterValidator(_non_empty)]
+
+
+class _Closed(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class RequiresEntry(_Closed):
+    """manifest.md: 'Each entry carries name, purpose, and install, and may carry optional.'"""
+
+    name: NonEmptyStr
+    purpose: NonEmptyStr
+    install: NonEmptyStr
+    optional: bool | None = None
+
+
+class Manifest(_Closed):
+    """The frontmatter as manifest.md defines it: a closed set, every field carrying
+    content, `requires` alone omissible."""
+
+    smart_tool_format: int
+    name: NonEmptyStr
+    version: NonEmptyStr
+    description: NonEmptyStr
+    use_cases: list[NonEmptyStr] = Field(min_length=1)
+    platforms: list[NonEmptyStr] = Field(min_length=1)
+    requires: list[RequiresEntry] | None = None
+
+
+def _format_loc(loc: tuple) -> str:
+    out = ""
+    for part in loc:
+        if isinstance(part, int):
+            out += f"[{part}]"
+        else:
+            out += f".{part}" if out else str(part)
+    return out
+
+
+def validate_manifest(fm: dict) -> dict[str, list[str]]:
+    """Validate the frontmatter and sort each complaint under the rule that owns it.
+
+    The schema is declared once, but the kit reports per rule, so a validation
+    error is routed by what it says rather than collapsing every manifest defect
+    into one verdict.
+    """
+    buckets: dict[str, list[str]] = {
+        "manifest-fields-closed": [],
+        "manifest-required-fields": [],
+        "manifest-field-shapes": [],
+        "manifest-requires-shape": [],
+    }
+    try:
+        Manifest.model_validate(fm)
+    except ValidationError as exc:
+        for err in exc.errors():
+            loc, etype, msg = err["loc"], err["type"], err["msg"]
+            where = _format_loc(loc) or "(root)"
+            if loc and loc[0] == "requires":
+                buckets["manifest-requires-shape"].append(f"{where}: {msg}")
+            elif etype == "extra_forbidden":
+                buckets["manifest-fields-closed"].append(where)
+            elif etype == "missing":
+                buckets["manifest-required-fields"].append(f"{where}: missing")
+            elif etype == "too_short" or etype.startswith("value_error"):
+                buckets["manifest-required-fields"].append(f"{where}: {msg}")
+            else:
+                buckets["manifest-field-shapes"].append(f"{where}: {msg}")
+    return buckets
 
 
 # --------------------------------------------------------------------------- #
@@ -418,20 +368,28 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             fm_error = f"unexpected parse error: {exc}"
 
     # M1 manifest-present
-    manifest_spec = ("manifest.md: 'the descriptor at the distribution root says where the "
-                     "manifest is.'")
+    # Where the manifest sits is the tool's choice; what it is called is not. The
+    # basename is checked because every other reader of a distribution -- and the
+    # single-per-root walk below -- looks for that exact name.
+    manifest_spec = ("packaging.md: 'manifest: required. Path to SMART_TOOL.md, relative to "
+                     "this file.' manifest.md: 'The descriptor at the distribution root "
+                     "names it, so a reader opens one file at a known path.'")
     if manifest_rel is None:
         add("manifest-present", FAIL, manifest_spec,
             f"{DESCRIPTOR_NAME} does not name a manifest (see descriptor-present)")
     elif not _within(manifest_path, target):
         add("manifest-present", FAIL, manifest_spec,
             f"'manifest': {manifest_rel!r} resolves outside the distribution root")
-    elif manifest_path.is_file():
-        add("manifest-present", PASS, manifest_spec,
-            f"{MANIFEST_NAME} found at {manifest_path.relative_to(target)}")
-    else:
+    elif not manifest_path.is_file():
         add("manifest-present", FAIL, manifest_spec,
             f"'manifest': {manifest_rel!r} does not exist")
+    elif manifest_path.name != MANIFEST_NAME:
+        add("manifest-present", FAIL, manifest_spec,
+            f"'manifest': {manifest_rel!r} is named {manifest_path.name!r}, "
+            f"not {MANIFEST_NAME}")
+    else:
+        add("manifest-present", PASS, manifest_spec,
+            f"{MANIFEST_NAME} found at {manifest_path.relative_to(target)}")
 
     # M2 manifest-frontmatter-parses
     if not manifest_path.is_file():
@@ -446,37 +404,40 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
 
     manifest_ok = fm is not None
 
-    # M3 manifest-fields-closed
-    if not manifest_ok:
-        add("manifest-fields-closed", SKIP,
-            "manifest.md: 'Fields not listed here are not part of the manifest.'",
-            "manifest not available")
+    # M3-M4 and the shape rule are one schema validation, reported separately.
+    problems = validate_manifest(fm) if manifest_ok else None
+
+    spec_m3 = "manifest.md: 'Fields not listed here are not part of the manifest.'"
+    if problems is None:
+        add("manifest-fields-closed", SKIP, spec_m3, "manifest not available")
+    elif problems["manifest-fields-closed"]:
+        add("manifest-fields-closed", FAIL, spec_m3,
+            f"field(s) not in the closed set: {', '.join(sorted(problems['manifest-fields-closed']))}")
     else:
-        extra = [k for k in fm if k not in ALLOWED_FIELDS]
-        if extra:
-            add("manifest-fields-closed", FAIL,
-                "manifest.md: 'Fields not listed here are not part of the manifest.'",
-                f"field(s) not in the closed set: {', '.join(sorted(extra))}")
-        else:
-            add("manifest-fields-closed", PASS,
-                "manifest.md: 'Fields not listed here are not part of the manifest.'",
-                "only recognised fields present")
+        add("manifest-fields-closed", PASS, spec_m3, "only recognised fields present")
 
     # M4 manifest-required-fields
-    if not manifest_ok:
-        add("manifest-required-fields", SKIP,
-            "manifest.md: the frontmatter fields each described as part of the manifest",
-            "manifest not available")
+    spec_m4 = ("manifest.md: 'Every field is required and carries content, except requires "
+               "... A field that is present but empty is not satisfied.'")
+    if problems is None:
+        add("manifest-required-fields", SKIP, spec_m4, "manifest not available")
+    elif problems["manifest-required-fields"]:
+        add("manifest-required-fields", FAIL, spec_m4,
+            "; ".join(problems["manifest-required-fields"]))
     else:
-        missing = [k for k in REQUIRED_FIELDS if k not in fm]
-        if missing:
-            add("manifest-required-fields", FAIL,
-                "manifest.md: the frontmatter fields each described as part of the manifest",
-                f"missing required field(s): {', '.join(missing)}")
-        else:
-            add("manifest-required-fields", PASS,
-                "manifest.md: the frontmatter fields each described as part of the manifest",
-                "all required fields present")
+        add("manifest-required-fields", PASS, spec_m4, "every required field carries content")
+
+    # M4b manifest-field-shapes
+    spec_shapes = ("manifest.md: 'The example fixes each field's shape. smart_tool_format is a "
+                   "number, name, version, and description are strings, use_cases and platforms "
+                   "are lists of strings, and requires is a list of entries.'")
+    if problems is None:
+        add("manifest-field-shapes", SKIP, spec_shapes, "manifest not available")
+    elif problems["manifest-field-shapes"]:
+        add("manifest-field-shapes", FAIL, spec_shapes,
+            "; ".join(problems["manifest-field-shapes"]))
+    else:
+        add("manifest-field-shapes", PASS, spec_shapes, "every field has the shape the spec gives it")
 
     # M5 manifest-name-format
     if not manifest_ok or "name" not in fm:
@@ -515,63 +476,48 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
                 f"manifest {mver} != {pkg_source} {pkg_version}")
 
     # M7 manifest-requires-shape
-    if not manifest_ok:
-        add("manifest-requires-shape", SKIP,
-            "manifest.md: 'Each entry carries name, purpose, and install ... install is a "
-            "reference to documentation ... never a command.'", "manifest not available")
-    elif "requires" not in fm or fm["requires"] in (None, []):
-        add("manifest-requires-shape", SKIP,
-            "manifest.md: 'Each entry carries name, purpose, and install ... install is a "
-            "reference to documentation ... never a command.'", "no 'requires' entries to validate")
+    # Entry shape comes from the schema; whether `install` is a doc reference
+    # rather than a command is a judgement the schema cannot make.
+    spec_m7 = ("manifest.md: 'Each entry carries name, purpose, and install ... install is a "
+               "reference to documentation ... never a command.'")
+    req = fm.get("requires") if manifest_ok else None
+    if problems is None:
+        add("manifest-requires-shape", SKIP, spec_m7, "manifest not available")
+    elif req in (None, []):
+        add("manifest-requires-shape", SKIP, spec_m7, "no 'requires' entries to validate")
     else:
-        req = fm["requires"]
-        problems: list[str] = []
-        if not isinstance(req, list):
-            problems.append("'requires' is not a list")
-        else:
+        entry_problems = list(problems["manifest-requires-shape"])
+        if isinstance(req, list):
             for idx, entry in enumerate(req):
-                if not isinstance(entry, dict):
-                    problems.append(f"entry #{idx} is not a mapping")
-                    continue
-                for k in REQUIRES_ENTRY_REQUIRED:
-                    if k not in entry:
-                        problems.append(f"entry #{idx} ({entry.get('name', '?')}) missing '{k}'")
-                extra_keys = [k for k in entry if k not in REQUIRES_ENTRY_KEYS]
-                if extra_keys:
-                    problems.append(f"entry #{idx} has unknown key(s): {', '.join(extra_keys)}")
-                if "optional" in entry and not isinstance(entry["optional"], bool):
-                    problems.append(f"entry #{idx} 'optional' must be a boolean")
-                install = entry.get("install")
+                install = entry.get("install") if isinstance(entry, dict) else None
                 if isinstance(install, str):
                     reason = _install_command_reason(install)
                     if reason:
-                        problems.append(f"entry #{idx} ({entry.get('name', '?')}) install {reason}")
-        if problems:
-            add("manifest-requires-shape", FAIL,
-                "manifest.md: 'Each entry carries name, purpose, and install ... install is a "
-                "reference to documentation ... never a command.'", "; ".join(problems))
+                        entry_problems.append(
+                            f"requires[{idx}] ({entry.get('name', '?')}) install {reason}")
+        if entry_problems:
+            add("manifest-requires-shape", FAIL, spec_m7, "; ".join(entry_problems))
         else:
-            add("manifest-requires-shape", PASS,
-                "manifest.md: 'Each entry carries name, purpose, and install ... install is a "
-                "reference to documentation ... never a command.'",
+            add("manifest-requires-shape", PASS, spec_m7,
                 f"{len(req)} requires entry(ies) well-formed")
 
     # M8 manifest-single-per-root
+    # The question is duplication, not existence. Whether a manifest is there at
+    # all, and whether it is named correctly, is manifest-present's -- and that
+    # rule fails when it is not. So finding none here reports no duplicate rather
+    # than skipping: zero manifests is not two.
+    spec_m8 = ("manifest.md: 'Exactly one manifest per distribution. A second SMART_TOOL.md "
+               "under a distribution root is incorrect and not a valid smart tool.'")
     found = found_manifests
     if len(found) > 1:
         rels = ", ".join(sorted(str(p.relative_to(target)) for p in found))
-        add("manifest-single-per-root", FAIL,
-            "manifest.md: 'Exactly one manifest per distribution. A second SMART_TOOL.md "
-            "beneath a distribution root is incorrect.'",
+        add("manifest-single-per-root", FAIL, spec_m8,
             f"{len(found)} manifests under root: {rels}")
     elif len(found) == 1:
-        add("manifest-single-per-root", PASS,
-            "manifest.md: 'Exactly one manifest per distribution. A second SMART_TOOL.md "
-            "beneath a distribution root is incorrect.'", "exactly one manifest under root")
+        add("manifest-single-per-root", PASS, spec_m8, "exactly one manifest under root")
     else:
-        add("manifest-single-per-root", SKIP,
-            "manifest.md: 'Exactly one manifest per distribution. A second SMART_TOOL.md "
-            "beneath a distribution root is incorrect.'", "no manifest found under root")
+        add("manifest-single-per-root", PASS, spec_m8,
+            "no second manifest under root (whether one exists is manifest-present)")
 
     # --- Runtime gathering -------------------------------------------------- #
     # The tool runs from a scratch directory, never from its own. A conformance
@@ -608,9 +554,12 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             f"{_first_line(help_run.err or help_run.out)}")
 
     # R2 help-flags-supported
-    spec_r2 = ("invocation.md: 'The CLI renders what the library exposes, at two levels of "
-               "detail for two different readers ... `-h` is the user summary ... `--help` "
-               "is the complete listing.'")
+    # The spec asks that both flags be answered, not that they differ: "Depending on the
+    # tool and structure of it, `-h` and `--help` are perfectly acceptable to be
+    # equivalent." A two-level split is what large surfaces usually want, not a rule, so
+    # this checks that each flag is recognised and neither is an error.
+    spec_r2 = ("invocation.md: '`-h` is the user summary ... `--help` is the complete "
+               "listing ... `-h` and `--help` are perfectly acceptable to be equivalent.'")
     if recipe.argv is None:
         add("help-flags-supported", SKIP, spec_r2, recipe.reason)
     elif help_run.timed_out or short_help_run.timed_out:
@@ -627,23 +576,6 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             add("help-flags-supported", FAIL, spec_r2, "; ".join(broken))
         else:
             add("help-flags-supported", PASS, spec_r2, "both '-h' and '--help' exit 0")
-
-    # R3 help-discloses-model-backed
-    spec_r3 = "invocation.md: '--help ... which capabilities are model-backed.'"
-    if recipe.argv is None:
-        add("help-discloses-model-backed", SKIP, spec_r3, recipe.reason)
-    elif help_run.timed_out or help_run.rc != 0:
-        add("help-discloses-model-backed", SKIP, spec_r3,
-            "could not obtain a successful '--help' (see loads-without-provider / no-hang)")
-    else:
-        blob = (help_run.out + "\n" + help_run.err).lower()
-        if any(tok in blob for tok in DISCLOSURE_TOKENS):
-            add("help-discloses-model-backed", PASS, spec_r3,
-                "'--help' discloses which capabilities are model-backed")
-        else:
-            add("help-discloses-model-backed", FAIL, spec_r3,
-                "'--help' does not disclose which capabilities are model-backed "
-                "(expected a 'model-backed' marker)")
 
     # R4 deterministic-capability-runs
     spec_r4 = ("structure.md: 'A caller that only wants the deterministic capabilities never has "
@@ -760,7 +692,7 @@ def _unresolved_executable(exe: str, target: Path) -> str | None:
     if shutil.which(exe) is None:
         return (
             f"cli_argv[0] '{exe}' was not found on PATH -- the tool must be installed "
-            "or runnable before conformance runs (packaging.md: the kit never installs)"
+            "or runnable before conformance runs (this kit never installs anything)"
         )
     return None
 

@@ -19,4 +19,6 @@ jobs:
       # tests must pass, and it must still discriminate a conforming tool from a
       # violating one (sample-good PASS, every sample-bad FAIL with its rule named).
       - name: Conformance kit self-tests
-        run: uv run --with pytest pytest conformance/tests/ -q
+        run: >-
+          uv run --with pytest --with-requirements conformance/run.py
+          pytest conformance/tests/ -q

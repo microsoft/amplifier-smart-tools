@@ -8,7 +8,7 @@ expertise into tools that any agent can use.
 
 A smart tool is a self-contained tool that ships with its own AI capability built
 in. It behaves like an ordinary library or CLI, and its straight code paths run
-with no model provider configured. Alongside those, it exposes higher-level
+with no AI provider configured. Alongside those, it exposes higher-level
 commands that invoke AI under the hood, so a caller states what it wants rather
 than loading a domain's worth of context and doing the work itself.
 
@@ -53,9 +53,9 @@ tools package that expertise so it travels:
 
 The [conformance kit](conformance/README.md) turns the specification's
 must/must-not prose into executable checks. It is generic over any smart tool,
-stdlib-only, and honest about what it cannot evaluate (a rule it cannot check is
-reported `SKIP`, never a fabricated `PASS`). Run it against any tool's
-distribution root:
+needs no install step, and is honest about what it cannot evaluate (a rule it
+cannot check is reported `SKIP`, never a fabricated `PASS`). Run it against any
+tool's distribution root:
 
 ```bash
 uv run conformance/run.py path/to/your-smart-tool

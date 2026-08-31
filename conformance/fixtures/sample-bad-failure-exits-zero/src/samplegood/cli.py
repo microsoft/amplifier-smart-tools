@@ -2,9 +2,8 @@
 """DEFECT: a bad invocation reports an error but exits 0.
 
 Violates: failure-exits-non-zero.
-The tool loads fine, answers both -h and --help, discloses its model-backed
-capability, and runs its deterministic verb -- but an unrecognised verb prints
-an error and returns 0. The error is hidden from every script, pipeline, and
+The tool loads fine, answers both -h and --help, and runs its deterministic
+verb -- but an unrecognised verb prints an error and returns 0. The error is hidden from every script, pipeline, and
 agent harness, all of which check the exit code and see success.
 """
 

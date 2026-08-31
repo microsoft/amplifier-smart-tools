@@ -69,6 +69,7 @@ time has made its AI capability mandatory, which is the opposite of what this as
 The model-backed paths are ordinary capabilities of the library. They take arguments, they
 return values, and they live alongside the deterministic ones.
 
-A caller is told which capabilities are model-backed, because cost and determinism are its
-concern. How a capability is implemented beyond that is the tool's business: which model,
-how many calls, what mix of code and inference.
+Callers should know which features are AI-enabled, and which ones are not based on the context
+and the capability being advertised. If it is genuinely ambiguous, it can be explicitly stated
+which capabilities require AI. How a capability is implemented beyond that is the tool's
+business: which model, how many calls, what mix of code and inference.
