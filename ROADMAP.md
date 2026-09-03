@@ -23,11 +23,28 @@ smart capabilities. Right now we delegate this exclusively to the examples.
 
 ### 3. How other products consume smart tools
 
-Nothing says what a product like the Amplifier App CLI, Copilot CLI, or Claude Code does to make
-an installed smart tool available to its agent. Does every tool ship a skill, or
-does one skill teach a host to find the installed tools and read their manifests?
+Nothing says what a product like the Amplifier App CLI, Copilot CLI, or Claude Code should do to
+make smart tools known to the host. For those wanting to integrate smart tools today, we
+require that each smart tool provide a `smart-tool.json`, which points to the manifest. The
+manifest can be used to determine how to advertise the tool to an agent. The descriptor also
+names the argv prefix that starts the tool's CLI, plus a deterministic capability that runs
+with no provider configured, so a platform can verify the install. A platform integrating
+smart tools would need to supply the environment in which those tools run, including network
+access and configured LLM providers.
 
-### 4. Generated wrappers
+### 4. AI Provider Interface
+
+Every smart tool hinges on setup of an AI provider of some sort. What do we want to provide
+to make this common or more streamlined? Currently we rely on the examples.
+
+### 5. Continuing a smart call
+
+A smart capability is a single shot today: arguments in, a result out. Sometimes a tool needs to
+ask a clarifying question before it can do the work, or a caller wants to continue from the same
+underlying session instead of starting over. Do we say anything here, or leave it to the tool
+given that a calling agent will usually just make another call?
+
+### 6. Generated wrappers
 
 Should we provide or suggest tools for generating wrappers for SDKs in other languages or MCP
 servers?
