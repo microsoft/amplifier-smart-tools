@@ -38,6 +38,22 @@ tools package that expertise so it travels:
 - **The knowledge stays in the tool**: the caller states an intent and gets a
   structured result it can hand straight to code.
 
+## How is this different from Skills, Agent Plugins, or MCP?
+
+A smart tool's smart capabilities invoke a model themselves, and may bundle their own
+harnesses or agents. With Skills, Agent Plugins, and MCP, it is the host that
+supplies the intelligence and determines how to use them. With a smart tool the
+intelligence is baked in, so the caller states what it wants and gets a result
+back. When a smart tool is invoked by another agent, it is similar to delegating
+to a sub-agent: the domain expertise, context, and trajectory (message history)
+stay inside the tool, and the result is what comes back. A smart tool might even
+use skills, plugins, or MCP servers internally to implement its own capabilities.
+ 
+The caller does not have to be an agent. Every smart tool is a library
+underneath, so apps, scripts, and jobs can integrate one directly, as can any
+agent. And not every capability is a smart one. A smart tool also exposes
+ordinary deterministic capabilities on the same surface.
+
 ## What's in this repository
 
 - **[spec/](spec/README.md)**: the specification, start here
@@ -47,7 +63,6 @@ tools package that expertise so it travels:
   - **[Packaging](spec/packaging.md)**: publishing, installing, and launching a smart tool
   - **[Examples](spec/examples.md)**: catalog of reference implementations
 - **[conformance/](conformance/README.md)**: a machine-checkable kit for deciding whether something is a conforming smart tool
-- **[ROADMAP.md](ROADMAP.md)**: what the specification deliberately leaves open
 
 ### Conformance
 
@@ -64,6 +79,10 @@ uv run conformance/run.py path/to/your-smart-tool
 ### Reference implementations
 
 [spec/examples](spec/examples.md) lists reference smart tools.
+
+### Roadmap
+
+Check [ROADMAP.md](ROADMAP.md) for a sense of where the spec is going and things we are still thinking about.
 
 ## Contributing
 
