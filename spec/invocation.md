@@ -77,22 +77,23 @@ how it works and how to configure permissions and scope of actions.
 
 ## What comes back
 
-A result a caller can act on without parsing prose. At the library level, that means
-ordinary return values. At the CLI, structured output on stdout is the encouraged default,
-because a caller that can parse a result can chain it. Plain text is fine where the result
-is genuinely a scalar or a single line and a format would be ceremony.
+The output format is part of each capability's documented interface, rather than a single
+format prescribed by this specification. Results may be plain text, formatted text such as
+Markdown, or structured data such as JSON. At the library level, these are ordinary return
+values based on whatever is appropriate for that capability. Choose a format that suits the
+result and how callers will use it.
 
-The test is whether the caller can hand the result to the next step without guessing. A
-model-backed capability that returns a paragraph of explanation where a value was asked for
-has moved the work of understanding back onto the caller.
+A CLI can default to readable text and offer structured output through a flag such as
+`--json` or `--output json`. Supporting both is useful when the same result serves readers
+and downstream code, but is *not* required for each capability. Help text and documentation
+should describe the default and any supported alternatives.
 
-Where a tool emits machine-readable output, stdout is the channel for it and stderr is the
-channel for anything addressed to a human: progress, warnings, summaries. Splitting by
-audience rather than by severity keeps a piped stdout parseable without suppressing what a
-person watching the run needs to see.
+Stdout carries the requested result, whether text or structured data. Stderr carries
+diagnostics such as progress messages and warnings, keeping them separate from results
+that callers may pipe to another command or save to a file.
 
-Where a capability produces an artifact, a profile, a document, a configuration, the result
-identifies the artifact rather than embedding it in a message.
+Where a capability writes an artifact, such as a profile, document, or configuration, to a
+file, the result clearly identifies its location.
 
 ## Where a tool puts its files
 
