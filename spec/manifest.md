@@ -2,12 +2,15 @@
 
 Every smart tool carries a manifest: a single file, shipped with the tool, that says what
 the tool is, what it is for, and what it needs in order to run. It is how a caller decides
-whether this is the right tool before invoking anything, and it is what a registry will
-consume once one exists.
+whether this is the right tool before invoking anything, and it is what catalogs and
+registries consume.
 
 The manifest travels with the tool's own source. Prerequisites and platform support change
-when the code changes, so they are updated in the same commit. A registry reads from the
-tool rather than holding its own copy.
+when the code changes, so they are updated in the same commit. Catalogs and registries
+read from that canonical upstream source. They may cache an exact generated snapshot,
+with the source repository, resolved revision, original manifest path, and refresh time
+recorded. A cached snapshot is not an independently authored description or evidence of
+the version installed on a caller's machine.
 
 ## Selection, not operation
 
@@ -29,7 +32,7 @@ the package definition, such as `pyproject.toml` or `package.json`, and the desc
 `smart-tool.json`. For a repository that ships a single smart tool, that is the repository
 root.
 
-There is one manifest and one copy of it. The library, the CLI, and every other adapter
+There is one canonical manifest per distribution. The library, the CLI, and every other adapter
 answer "what is this tool, and can I run it here" from the same bytes, so they cannot
 disagree about the tool's name, its version, or what it needs. It sits with the code because 
 the source is what every surface is built from. A manifest there is reachable from all of 
