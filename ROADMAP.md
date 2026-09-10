@@ -51,9 +51,5 @@ servers?
 
 ## Beyond
 
-**Registry and discovery.** There will be a registry, and discovery is its own project. Its
-format is undecided. The specification requires only that each tool own a self-description
-at its own distribution root, so a registry can consume it whenever one exists.
-
 **Host awareness.** The inverse direction, where a host automatically discovers and offers
 the smart tools already installed, is secondary and not blocking. Tools ship first.

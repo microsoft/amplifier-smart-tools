@@ -78,7 +78,15 @@ uv run conformance/run.py path/to/your-smart-tool
 
 ### Reference implementations
 
-[spec/examples](spec/examples.md) lists reference smart tools.
+[spec/examples](spec/examples.md) lists reference smart tools. These are examples,
+not conformance claims.
+
+### Discover Smart Tools
+
+The [Amplifier Smart Tools Catalog](https://github.com/microsoft/amplifier-smart-tools-catalog)
+lists available tools and provides a shared discovery skill for coding agents.
+Catalog entries are separate from the reference implementations above; a catalog
+listing does not establish conformance.
 
 ### Roadmap
 
