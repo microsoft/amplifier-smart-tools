@@ -1,8 +1,14 @@
 # Amplifier Smart Tools
 
-The home of the **Smart Tools** specification, its conformance kit, and the
-catalog of reference implementations. Smart Tools is a format for packaging domain 
-expertise into tools that any agent can use.
+Smart Tools is a format for packaging domain expertise into tools that any agent can use.
+This repo contains the specification and its conformance kit, with links to
+reference implementations, the catalog, and its discovery skill.
+
+Install the [Smart Tools discovery skill](https://github.com/microsoft/amplifier-smart-tools-catalog) to help your coding agent find and use Smart Tools:
+
+```bash
+npx skills add microsoft/amplifier-smart-tools-catalog --skill amplifier-smart-tools-catalog
+```
 
 ## What are Smart Tools?
 
@@ -78,15 +84,12 @@ uv run conformance/run.py path/to/your-smart-tool
 
 ### Reference implementations
 
-[spec/examples](spec/examples.md) lists reference smart tools. These are examples,
-not conformance claims.
+[spec/examples](spec/examples.md) lists reference smart tools.
 
-### Discover Smart Tools
+### Discover Smart Tools and Catalog
 
 The [Amplifier Smart Tools Catalog](https://github.com/microsoft/amplifier-smart-tools-catalog)
 lists available tools and provides a shared discovery skill for coding agents.
-Catalog entries are separate from the reference implementations above; a catalog
-listing does not establish conformance.
 
 ### Roadmap
 
