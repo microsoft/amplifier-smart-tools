@@ -53,7 +53,8 @@ Smart tools are built on three principles that inform everything else in this sp
   for, and what it runs on. This is the artifact a registry will later consume, and it
   ships with the tool.
 - **[Invocation](invocation.md)**: calling a smart tool. Straight and smart paths,
-  self-description, passing context in, getting artifacts out, and failure semantics.
+  self-description as a skill, passing context in, getting artifacts out, and failure
+  semantics.
 - **[Packaging](packaging.md)**: how a smart tool is published, installed, and launched.
   Install methods, the ecosystem and runner vocabulary, and the descriptor.
 

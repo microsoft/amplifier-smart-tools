@@ -28,8 +28,9 @@ correctly.
 ## Self-description
 
 A smart tool can describe its own surface: the capabilities it offers, their arguments and
-types, and what each returns. Self-description covers how to drive the tool. The manifest
-covers whether to reach for it at all, and is reachable from the library in the same way.
+types, and what each returns. Self-description covers how to drive the tool. The manifest's
+frontmatter covers whether to reach for it at all, and is reachable from the library in the
+same way.
 
 Most of this is native to a library. Signatures and docstrings carry the names, arguments,
 types, and return shapes, and a caller holding the library reads them the way it reads any
@@ -38,16 +39,98 @@ it should be clear which functionality is AI-enabled. If it is genuinely ambiguo
 be explicitly stated which capabilities require AI.
 
 The CLI renders what the library exposes, at two levels of detail for two different readers.
-Depending on the tool and structure of it, `-h` and `--help` are perfectly acceptable
-to be equivalent.
 
 `-h` is the user summary. Terse and scannable: the capabilities and a line about each. It is
 what someone types when they want to remember the name of a flag.
 
-`--help` is the complete listing, written for an agent deciding how to call the tool. Every
-capability, its arguments and their types and what it returns. It is longer than a person wants
-to read, and complete rather than selective. It is usually different from `-h` for tools who
-have large surfaces.
+`--help` is the skill. It is written for an agent that has decided to use the tool and now
+needs to drive it well, and it has the shape of an [Agent Skill](https://agentskills.io/specification)
+as a host delivers one to a model: the skill body, wrapped so the reader knows where the
+tool's files are.
+
+```
+<skill_content name="doc-summarizer">
+Skill directory: /home/user/.venv/lib/python3.13/site-packages/doc_summarizer
+Repository: https://github.com/example/doc-summarizer
+Relative paths in this skill are relative to the skill directory.
+
+# doc-summarizer
+
+Condenses long documents into summaries a reader can act on.
+
+**The library is the tool.** `doc_summarizer.lib` holds every capability. ...
+
+## When to reach for it
+
+...
+
+## Capabilities
+
+- `manifest` [deterministic] -- Print the tool's manifest as JSON. Arguments, result, and exit codes: `doc-summarizer manifest --help`.
+- `summarize` [model-backed] -- Condense a document. Arguments, result, and exit codes: `doc-summarizer summarize --help`.
+
+<skill_resources>
+  <file>SMART_TOOL.md</file>
+  <file>lib.py</file>
+</skill_resources>
+</skill_content>
+```
+
+The rendered skill opens with the tool's name as a heading, then the manifest body, read
+from the same bytes the library reads, then whatever the tool generates from its own
+surface. The manifest body itself does not repeat the heading. The whole is Markdown with
+no frontmatter and no usage line. Hosts that activate skills strip frontmatter before
+handing the body to a model, and the routing metadata it would carry is already in the
+manifest.
+
+The manifest body is the baseline skill text: what `--help` renders when the tool has
+nothing to add. A tool may render more than the body, or something other than it, when it
+knows something at runtime that the file cannot: which prerequisites are present, whether
+a provider is configured, what the host can run. What it renders still has the shape above
+and still says what the body is required to say.
+
+The body says what an agent would otherwise get wrong: when this tool is the right choice
+and when it is not; how to install it and what it needs; worked invocations; sharp edges;
+where to read more. The capability list, one line each with deterministic and model-backed
+distinguished and each pointing at its own `--help`, is generated from the tool's own
+surface so it cannot drift from what the CLI accepts. A body that lists every argument of
+every capability has stopped being a skill and become a reference; the Agent Skills
+guidance of under 500 lines is the right ceiling.
+
+The skill directory is the installed package root, resolved by the library at runtime. It
+puts the tool's own files in reach: the manifest, the library source with its signatures,
+and any documentation shipped alongside. `<skill_resources>` lists the files the body
+refers to, as paths relative to the skill directory. Every listed path resolves after
+installation, which means the files it names ship inside the package. A tool with nothing
+to list omits the block.
+
+A caller that can run the tool cannot always read its files: the tool may be on another
+machine, or in a sandbox that permits execution and nothing else. The `Repository:` line
+names the tool's canonical source so that caller can still reach the documentation the
+body points at. The URL comes from the package metadata, so it is stated once and never
+copied into the manifest. A tool with no repository declared omits the line.
+
+The library exposes the skill text and each piece it is built from: the skill directory,
+the repository URL, and the resource list. The CLI prints the skill and adds nothing. A
+tool that assembles its `--help` in the CLI has put capability where only one surface can
+reach it.
+
+`<tool> <capability> --help` is the complete listing for one capability: its arguments and
+their types, what it returns, and how it fails. This is where the detail that does not
+belong in the skill lives, and every capability answers it.
+
+### Shipping an Agent Skill alongside
+
+A tool may also ship an Agent Skill, `skills/<name>/SKILL.md` in its repository. This is
+optional. It exists for hosts that speak Agent Skills but know nothing about smart tools:
+Claude Code, Copilot, or any harness that discovers `SKILL.md` files. Through it, such a
+host learns the tool exists and how to start using it without anyone teaching it what a
+smart tool is.
+
+The skill carries the manifest's name and description, the install commands, and the
+instruction to run `--help` and follow it. Nothing more. The tool brings the rest with it
+through `--help`, so the skill stays correct when the tool changes and there is one place
+the guidance is written.
 
 ## Passing context in
 

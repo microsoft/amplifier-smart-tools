@@ -78,8 +78,9 @@ to that tool and does not count against this one.
 ## Reading it after installation
 
 The manifest is included in whatever the tool publishes, and the library exposes it as
-structured data read from the copy built into the tool. Callers reach the manifest through the library 
-rather than by locating a file. Install layouts differ by ecosystem and no filesystem path is portable across them.
+structured data read from the copy built into the tool: the frontmatter as fields and the
+body as text. Callers reach the manifest through the library rather than by locating a
+file. Install layouts differ by ecosystem and no filesystem path is portable across them.
 
 A file in the source tree and an accessor on the library are the same manifest reached
 two ways. The file serves anything reading source: a registry scraping a repository, CI, a
@@ -158,9 +159,12 @@ system, which already resolves them.
 
 ## The body
 
-Everything below the frontmatter is guidance, written for whoever is about to use the tool,
-user or agent. Typical contents: when this tool is the right choice and when it is not,
-sharp edges, worked invocations, and pointers to deeper documentation.
+Everything below the frontmatter is the skill: guidance written for an agent that has
+decided to use the tool and now needs to drive it well. It is what `--help` renders, so a
+person reading the source file and an agent reading the CLI see the same guidance.
+Typical contents: when this tool is the right choice and when it is not, sharp edges,
+worked invocations, and pointers to deeper documentation. [Invocation](invocation.md)
+says what the rendered skill looks like and what belongs in it.
 
-It carries no compatibility guarantee, and nothing may depend on a particular sentence
-being present. A tool with nothing to add leaves it empty.
+The body is prose for a reader, not an interface. No caller, host, or check parses it for
+a particular heading or sentence, and a tool may reword it freely between versions.
