@@ -43,10 +43,9 @@ The CLI renders what the library exposes, at two levels of detail for two differ
 `-h` is the user summary. Terse and scannable: the capabilities and a line about each. It is
 what someone types when they want to remember the name of a flag.
 
-`--help` is the skill. It is written for an agent that has decided to use the tool and now
-needs to drive it well, and it has the shape of an [Agent Skill](https://agentskills.io/specification)
-as a host delivers one to a model: the skill body, wrapped so the reader knows where the
-tool's files are.
+`--help` is the skill: what an agent reads once it has decided to use the tool. It has the
+shape of an [Agent Skill](https://agentskills.io/specification) as a host delivers one to a
+model.
 
 ```
 <skill_content name="doc-summarizer">
@@ -76,48 +75,31 @@ Condenses long documents into summaries a reader can act on.
 </skill_content>
 ```
 
-The rendered skill opens with the tool's name as a heading, then the manifest body, read
-from the same bytes the library reads, then whatever the tool generates from its own
-surface. The manifest body itself does not repeat the heading. The whole is Markdown with
-no frontmatter and no usage line. Hosts that activate skills strip frontmatter before
-handing the body to a model, and the routing metadata it would carry is already in the
-manifest.
+**Skill directory** is the installed package root, resolved by the library at runtime. It
+puts the tool's own files in reach: the manifest, the library source, anything shipped
+alongside.
 
-The manifest body is the baseline skill text: what `--help` renders when the tool has
-nothing to add. A tool may render more than the body, or something other than it, when it
-knows something at runtime that the file cannot: which prerequisites are present, whether
-a provider is configured, what the host can run. What it renders still has the shape above
-and still says what the body is required to say.
+**Repository** is the tool's canonical source, read from the package metadata, for a caller
+that can run the tool but cannot read its files. Omitted when the package declares none.
 
-The body says what an agent would otherwise get wrong: when this tool is the right choice
-and when it is not; how to install it and what it needs; worked invocations; sharp edges;
-where to read more. The capability list, one line each with deterministic and model-backed
-distinguished and each pointing at its own `--help`, is generated from the tool's own
-surface so it cannot drift from what the CLI accepts. A body that lists every argument of
-every capability has stopped being a skill and become a reference; the Agent Skills
-guidance of under 500 lines is the right ceiling.
+**The body** is the manifest body under a heading carrying the tool's name. Markdown, no
+frontmatter, no usage line. It says what an agent would otherwise get wrong: when to reach
+for the tool and when not, install and prerequisites, worked invocations, sharp edges, where
+to read more. The Agent Skills ceiling of 500 lines applies. The manifest body is the
+baseline; a tool may render more, or differently, when it knows something at runtime the
+file cannot, such as whether a provider is configured.
 
-The skill directory is the installed package root, resolved by the library at runtime. It
-puts the tool's own files in reach: the manifest, the library source with its signatures,
-and any documentation shipped alongside. `<skill_resources>` lists the files the body
-refers to, as paths relative to the skill directory. Every listed path resolves after
-installation, which means the files it names ship inside the package. A tool with nothing
-to list omits the block.
+**Capabilities** is generated from the tool's own surface: one line each, deterministic or
+model-backed, each pointing at `<tool> <capability> --help`. That per-capability listing is
+required for every capability and carries the arguments, return, and failures that do not
+belong in the skill.
 
-A caller that can run the tool cannot always read its files: the tool may be on another
-machine, or in a sandbox that permits execution and nothing else. The `Repository:` line
-names the tool's canonical source so that caller can still reach the documentation the
-body points at. The URL comes from the package metadata, so it is stated once and never
-copied into the manifest. A tool with no repository declared omits the line.
+**Resources** lists the files the body refers to, relative to the skill directory. Every
+path resolves after installation, so the files ship inside the package. Omitted when there
+is nothing to list.
 
-The library exposes the skill text and each piece it is built from: the skill directory,
-the repository URL, and the resource list. The CLI prints the skill and adds nothing. A
-tool that assembles its `--help` in the CLI has put capability where only one surface can
-reach it.
-
-`<tool> <capability> --help` is the complete listing for one capability: its arguments and
-their types, what it returns, and how it fails. This is where the detail that does not
-belong in the skill lives, and every capability answers it.
+The library exposes the skill and each piece it is built from. The CLI prints it and adds
+nothing.
 
 ### Shipping an Agent Skill alongside
 

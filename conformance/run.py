@@ -563,8 +563,8 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
     # `--help` prints something. The *shape* of the skill -- wrapper, heading,
     # resources -- is deliberately not parsed here: conformance stays shallow, the
     # shape is the spec's job.
-    spec_r2 = ("invocation.md: '`-h` is the user summary ... `--help` is the skill. It is "
-               "written for an agent that has decided to use the tool.'")
+    spec_r2 = ("invocation.md: '`-h` is the user summary ... `--help` is the skill: what an "
+               "agent reads once it has decided to use the tool.'")
     if recipe.argv is None:
         add("help-flags-supported", SKIP, spec_r2, recipe.reason)
     elif help_run.timed_out or short_help_run.timed_out:
@@ -589,8 +589,9 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
     # Only the capability the descriptor already names is probed: the kit has no
     # inventory of a tool's surface, and one capability answering is enough to show
     # the per-capability listing exists. Its content, like the skill's, is not parsed.
-    spec_r3 = ("invocation.md: '`<tool> <capability> --help` is the complete listing for "
-               "one capability ... every capability answers it.'")
+    spec_r3 = ("invocation.md: 'each pointing at `<tool> <capability> --help`. That "
+               "per-capability listing is required for every capability and carries the "
+               "arguments, return, and failures that do not belong in the skill.'")
     cap = recipe.smoke[0] if recipe.smoke else None
     if recipe.argv is None:
         add("capability-help-supported", SKIP, spec_r3, recipe.reason)
