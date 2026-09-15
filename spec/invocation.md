@@ -160,6 +160,11 @@ that callers may pipe to another command or save to a file.
 Where a capability writes an artifact, such as a profile, document, or configuration, to a
 file, the result clearly identifies its location.
 
+Capabilities, smart or not, and within one tool or across several, compose by writing a
+script against the libraries, where results are typed return values rather than text to
+parse. The help text says so, so a caller chaining capabilities reaches for the library
+instead of piping CLI output.
+
 ## Where a tool puts its files
 
 State, caches, logs, and temporary files belong outside the tool's own directory. A smart
