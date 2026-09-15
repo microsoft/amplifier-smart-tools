@@ -16,7 +16,7 @@ requires:
   - name: sample-provider
     purpose: Backs the 'summarize' capability. Without it, only the deterministic verbs run.
     optional: true
-    install: README.md
+    install: docs/using-samplegood.md
 ---
 
 # samplegood

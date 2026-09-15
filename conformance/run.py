@@ -525,13 +525,17 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
     # in one. Anything the tool writes relative to its working directory lands
     # here and is discarded.
     recipe = discover_recipe(descriptor, descriptor_error, target)
-    help_run = short_help_run = smoke_run = bad_run = None
+    help_run = short_help_run = cap_help_run = smoke_run = bad_run = None
     if recipe.argv is not None:
         scratch = Path(tempfile.mkdtemp(prefix="smart-tools-conformance-"))
         try:
             help_run = run_cli(recipe.argv + ["--help"], scratch, timeout, scrub=True)
             short_help_run = run_cli(recipe.argv + ["-h"], scratch, timeout, scrub=True)
             if recipe.smoke:
+                # The first token of the smoke invocation is the capability's name.
+                cap_help_run = run_cli(
+                    recipe.argv + [recipe.smoke[0], "--help"], scratch, timeout, scrub=True
+                )
                 smoke_run = run_cli(recipe.argv + recipe.smoke, scratch, timeout, scrub=True)
             bad_run = run_cli(recipe.argv + recipe.bad, scratch, timeout, scrub=True)
         finally:
@@ -554,12 +558,13 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             f"{_first_line(help_run.err or help_run.out)}")
 
     # R2 help-flags-supported
-    # The spec asks that both flags be answered, not that they differ: "Depending on the
-    # tool and structure of it, `-h` and `--help` are perfectly acceptable to be
-    # equivalent." A two-level split is what large surfaces usually want, not a rule, so
-    # this checks that each flag is recognised and neither is an error.
-    spec_r2 = ("invocation.md: '`-h` is the user summary ... `--help` is the complete "
-               "listing ... `-h` and `--help` are perfectly acceptable to be equivalent.'")
+    # The spec asks that both flags be answered and that `--help` render the tool's
+    # skill. This checks that each flag is recognised, neither is an error, and
+    # `--help` prints something. The *shape* of the skill -- wrapper, heading,
+    # resources -- is deliberately not parsed here: conformance stays shallow, the
+    # shape is the spec's job.
+    spec_r2 = ("invocation.md: '`-h` is the user summary ... `--help` is the skill: what an "
+               "agent reads once it has decided to use the tool.'")
     if recipe.argv is None:
         add("help-flags-supported", SKIP, spec_r2, recipe.reason)
     elif help_run.timed_out or short_help_run.timed_out:
@@ -572,10 +577,40 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
             for flag, probe in (("-h", short_help_run), ("--help", help_run))
             if probe.rc != 0
         ]
+        if not broken and not help_run.out.strip():
+            broken.append("'--help' exits 0 but prints nothing to stdout")
         if broken:
             add("help-flags-supported", FAIL, spec_r2, "; ".join(broken))
         else:
-            add("help-flags-supported", PASS, spec_r2, "both '-h' and '--help' exit 0")
+            add("help-flags-supported", PASS, spec_r2,
+                "both '-h' and '--help' exit 0, and '--help' prints to stdout")
+
+    # R3 capability-help-supported
+    # Only the capability the descriptor already names is probed: the kit has no
+    # inventory of a tool's surface, and one capability answering is enough to show
+    # the per-capability listing exists. Its content, like the skill's, is not parsed.
+    spec_r3 = ("invocation.md: 'each pointing at `<tool> <capability> --help`. That "
+               "per-capability listing is required for every capability and carries the "
+               "arguments, return, and failures that do not belong in the skill.'")
+    cap = recipe.smoke[0] if recipe.smoke else None
+    if recipe.argv is None:
+        add("capability-help-supported", SKIP, spec_r3, recipe.reason)
+    elif not cap:
+        add("capability-help-supported", SKIP, spec_r3,
+            "no deterministic smoke invocation declared (smart-tool.json)")
+    elif cap_help_run.timed_out:
+        add("capability-help-supported", SKIP, spec_r3,
+            f"'{cap} --help' did not complete within timeout (inconclusive; see no-hang)")
+    elif cap_help_run.rc != 0:
+        add("capability-help-supported", FAIL, spec_r3,
+            f"'{cap} --help' exits {cap_help_run.rc}: "
+            f"{_first_line(cap_help_run.err or cap_help_run.out)}")
+    elif not cap_help_run.out.strip():
+        add("capability-help-supported", FAIL, spec_r3,
+            f"'{cap} --help' exits 0 but prints nothing to stdout")
+    else:
+        add("capability-help-supported", PASS, spec_r3,
+            f"'{cap} --help' exits 0 and prints its own listing")
 
     # R4 deterministic-capability-runs
     spec_r4 = ("structure.md: 'A caller that only wants the deterministic capabilities never has "

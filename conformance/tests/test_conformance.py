@@ -37,6 +37,12 @@ EXPECTED_PRIMARY = {
     "sample-bad-hang": "no-hang-stdin-closed",
 }
 
+# capability-help-supported has no fixture of its own. A tool whose per-capability
+# help is broken while every other rule holds would be a new bad fixture, and the
+# rule is already exercised negatively where a load refusal takes the whole CLI
+# down with it (test_capability_help_fails_when_the_tool_cannot_run).
+RULES_WITHOUT_A_DEDICATED_FIXTURE = {"capability-help-supported"}
+
 
 def _evaluate(name: str) -> dict:
     return run.evaluate(FIXTURES_DIR / name, timeout=TIMEOUT)
@@ -84,13 +90,66 @@ def test_sample_bad_fails_with_named_rule(fixture, primary):
 
 
 def test_every_rule_has_a_negative_fixture():
-    """The union of what the bad fixtures trip covers every rule the kit emits."""
+    """The union of what the bad fixtures trip covers every rule the kit emits.
+
+    Rules exempted above are named explicitly, so a rule can never lose its
+    negative coverage silently.
+    """
     good = _evaluate("sample-good")
     all_rule_ids = {c["id"] for c in good["checks"]}
     covered = set(EXPECTED_PRIMARY.values())
-    assert covered == all_rule_ids, (
-        f"rules with no dedicated negative fixture: {sorted(all_rule_ids - covered)}"
+    assert covered.isdisjoint(RULES_WITHOUT_A_DEDICATED_FIXTURE)
+    assert covered | RULES_WITHOUT_A_DEDICATED_FIXTURE == all_rule_ids, (
+        "rules with no dedicated negative fixture: "
+        f"{sorted(all_rule_ids - covered - RULES_WITHOUT_A_DEDICATED_FIXTURE)}"
     )
+
+
+def test_sample_good_answers_capability_help():
+    """The capability the descriptor names answers its own --help."""
+    result = _evaluate("sample-good")
+    check = next(c for c in result["checks"] if c["id"] == "capability-help-supported")
+    assert check["status"] == run.PASS, check["detail"]
+    assert "stats --help" in check["detail"]
+
+
+def test_capability_help_fails_when_the_tool_cannot_run():
+    """The negative side of capability-help-supported.
+
+    A tool that refuses to load cannot answer its capability help either, so the
+    rule FAILs rather than being quietly skipped.
+    """
+    result = _evaluate("sample-bad-refuses-without-provider")
+    by_id = {c["id"]: c["status"] for c in result["checks"]}
+    assert by_id["capability-help-supported"] == run.FAIL
+
+
+def test_help_that_prints_nothing_fails(tmp_path: Path):
+    """`--help` exiting 0 with no output is not a skill.
+
+    The kit does not parse the skill's shape, but an empty --help renders no
+    guidance at all, so it is reported rather than passed.
+    """
+    tool = tmp_path / "tool"
+    shutil.copytree(FIXTURES_DIR / "sample-good", tool)
+    (tool / "silent_help_wrapper.py").write_text(
+        "import runpy\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        "if '--help' in sys.argv[1:]:\n"
+        "    raise SystemExit(0)\n"
+        "cli = Path(__file__).parent / 'src' / 'samplegood' / 'cli.py'\n"
+        "runpy.run_path(str(cli), run_name='__main__')\n",
+        encoding="utf-8",
+    )
+    descriptor = json.loads((tool / "smart-tool.json").read_text())
+    descriptor["cli_argv"] = ["uv", "run", "--no-project", "silent_help_wrapper.py"]
+    (tool / "smart-tool.json").write_text(json.dumps(descriptor, indent=2), encoding="utf-8")
+
+    result = run.evaluate(tool, timeout=TIMEOUT)
+    check = next(c for c in result["checks"] if c["id"] == "help-flags-supported")
+    assert check["status"] == run.FAIL
+    assert "prints nothing to stdout" in check["detail"]
 
 
 def test_skip_is_honest_never_a_fabricated_pass():
@@ -162,6 +221,7 @@ def test_runtime_rules_skip_without_a_descriptor(tmp_path: Path):
     for rule in (
         "loads-without-provider",
         "help-flags-supported",
+        "capability-help-supported",
         "deterministic-capability-runs",
         "failure-exits-non-zero",
         "no-hang-stdin-closed",

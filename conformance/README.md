@@ -38,7 +38,7 @@ look rather than searching for it.
 
 ## What it checks
 
-Fifteen rules, each carrying the spec sentence it operationalizes. Where a rule
+Sixteen rules, each carrying the spec sentence it operationalizes. Where a rule
 goes beyond the spec, it says so instead of citing a sentence that does not
 exist.
 
@@ -55,13 +55,14 @@ exist.
 | `manifest-requires-shape` | Each `requires` entry is `{name, purpose, install[, optional]}`; `install` is a doc reference, never a command. |
 | `manifest-single-per-root` | No second `SMART_TOOL.md` under the root, not counting nested distributions. Whether one exists at all is `manifest-present`. |
 | `loads-without-provider` | With provider env scrubbed, the tool loads (`--help` exits 0) -- it does not refuse to load. |
-| `help-flags-supported` | Both `-h` and `--help` are answered and exit 0. The spec permits them to render the same text, so their content is not compared. |
+| `help-flags-supported` | Both `-h` and `--help` are answered and exit 0, and `--help` prints something. The spec permits them to render the same text, and the shape of the skill `--help` renders is not parsed here. |
+| `capability-help-supported` | The capability named in `deterministic_smoke` answers `<capability> --help` with exit 0 and output of its own. |
 | `deterministic-capability-runs` | A declared deterministic capability runs with provider env scrubbed. |
 | `failure-exits-non-zero` | A bad invocation exits non-zero. |
 | `no-hang-stdin-closed` | A run with stdin closed completes within the bounded timeout. |
 
 The descriptor rule and the nine `manifest-*` rules are pure file inspection and
-run against any tool in any language. The five runtime rules need to *invoke* the
+run against any tool in any language. The six runtime rules need to *invoke* the
 tool (see below); when no invocation is possible they SKIP honestly.
 
 The frontmatter is parsed as YAML and validated against a schema declared once,
@@ -86,7 +87,8 @@ at the distribution root (see `spec/packaging.md`):
 - `cli_argv` -- how to launch the CLI. An element naming a file inside the
   distribution is resolved against the root before the tool is started.
 - `deterministic_smoke` -- an invocation of a capability that runs with no
-  provider configured.
+  provider configured. Its first token is the capability's name, which is what
+  `capability-help-supported` asks for help on.
 
 To exercise `failure-exits-non-zero` the kit appends a verb no tool defines,
 `__conformance_no_such_verb__`, and inspects the exit code of the rejection.
@@ -100,7 +102,7 @@ tool reads or writes; the scratch directory is containment for the run.
 
 This is the kit's only source. It never installs the tool under test: present it
 with one that already runs, from source or installed onto the path. Without a
-descriptor, `descriptor-present` FAILs and the five runtime rules SKIP rather
+descriptor, `descriptor-present` FAILs and the six runtime rules SKIP rather
 than passing or failing.
 
 A subdirectory with its own descriptor is a nested distribution, and its manifest
@@ -108,8 +110,8 @@ is not counted against the parent.
 
 ### Provider scrubbing
 
-Every probe the kit runs -- both help flags, the deterministic smoke invocation,
-and the bad invocation -- runs with provider/model environment variables removed
+Every probe the kit runs -- both help flags, the capability help probe, the
+deterministic smoke invocation, and the bad invocation -- runs with provider/model environment variables removed
 (anything matching `*_API_KEY`, `ANTHROPIC*`, `OPENAI*`, `*_MODEL`, `*PROVIDER*`,
 ...) so it observes the tool as a caller with **no** model credentials would.
 
@@ -120,7 +122,10 @@ and the bad invocation -- runs with provider/model environment variables removed
   package holding the library, the CLI, and the one manifest both of them read.
 - `fixtures/sample-bad-*/` -- one defect each; the kit must fail each fixture with
   the corresponding rule named. Every rule the kit emits has a dedicated negative
-  fixture (`tests/test_conformance.py::test_every_rule_has_a_negative_fixture`).
+  fixture, except those named in
+  `tests/test_conformance.py::RULES_WITHOUT_A_DEDICATED_FIXTURE`, which are
+  exercised by a test of their own
+  (`tests/test_conformance.py::test_every_rule_has_a_negative_fixture`).
 
 A tool that refuses to load also cannot run its deterministic verb, so a few
 runtime defects legitimately cascade across more than one rule; the tests assert

@@ -40,6 +40,9 @@ The CLI may add things that only make sense at a command line. Loading a file pa
 value the library takes as data is the common case, permitted while the library still
 accepts the data directly.
 
+The same rule covers help text. What `--help` prints is the tool's skill, and the skill
+comes from the library. The CLI prints it and adds nothing.
+
 ## Optional surfaces
 
 Anything beyond the library and the CLI is optional, and optional means the tool works
