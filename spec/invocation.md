@@ -39,6 +39,7 @@ it should be clear which functionality is AI-enabled. If it is genuinely ambiguo
 be explicitly stated which capabilities require AI.
 
 The CLI renders what the library exposes, at two levels of detail for two different readers.
+The split holds at every scope: on the tool, and on each capability.
 
 `-h` is the user summary. Terse and scannable: the capabilities and a line about each. It is
 what someone types when they want to remember the name of a flag.
@@ -65,8 +66,10 @@ Condenses long documents into summaries a reader can act on.
 
 ## Capabilities
 
-- `manifest` [deterministic] -- Print the tool's manifest as JSON. Arguments, result, and exit codes: `doc-summarizer manifest --help`.
-- `summarize` [model-backed] -- Condense a document. Arguments, result, and exit codes: `doc-summarizer summarize --help`.
+Each has its own skill: `doc-summarizer <capability> --help`.
+
+- `manifest` [deterministic] -- Print the tool's manifest as JSON.
+- `summarize` [model-backed] -- Condense a document.
 
 <skill_resources>
   <file>SMART_TOOL.md</file>
@@ -90,9 +93,15 @@ baseline; a tool may render more, or differently, when it knows something at run
 file cannot, such as whether a provider is configured.
 
 **Capabilities** is generated from the tool's own surface: one line each, deterministic or
-model-backed, each pointing at `<tool> <capability> --help`. That per-capability listing is
-required for every capability and carries the arguments, return, and failures that do not
-belong in the skill.
+model-backed, under one line pointing at `<tool> <capability> --help`. That is the capability's skill,
+required for every capability: the same shape as the tool's, scoped to one capability, and
+carrying what the tool's skill leaves out: when to use it, whether it is deterministic or
+model-backed, every argument and what it is for, a worked invocation, the result, and the
+failures. `<tool> <capability> -h` is the terse summary of that one capability. The tool's
+skill says the capability skills exist, so an agent reading it knows to ask for them. The
+tiers follow Agent Skills' progressive disclosure: the manifest description decides whether
+to look, the tool's skill decides which capability, the capability's skill decides how to
+call it.
 
 **Resources** lists the files the body refers to, relative to the skill directory. Every
 path resolves after installation, so the files ship inside the package. Omitted when there
