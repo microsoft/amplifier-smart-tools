@@ -39,6 +39,8 @@ Separate installation/version, retained work, operation, immutable revision, res
 
 Mutations target explicit identities and supported state preconditions. Return receipts that distinguish rejection, acceptance, completion, failure, and uncertain execution. Document request-ID deduplication scope and retention; reusing an ID with different arguments must conflict within that scope. Acceptance is not completion, and a lost response is not permission to replay model work. Do not invent atomic concurrency guarantees around a library that cannot enforce them against other callers.
 
+Presenters must preserve the identity and immutable input of an uncertain submission until it is reconciled. Retrying after a lost acknowledgment must not mint a new creative operation or renew its grant; starting new intent is an explicit separate action. Library identity checks must reject collisions with other retained object kinds without replacing their records.
+
 ### 3. Observations, navigation, and review
 
 Offer bounded snapshots and scoped references for details. If changes/cursors are supported, identify ordering, truncation, and recovery. Exclude secrets and private reasoning. Selected revision, focused alternative/page, playback position, and saved-draft status are useful semantic observations; they do not imply pixel access.
@@ -46,6 +48,8 @@ Offer bounded snapshots and scoped references for details. If changes/cursors ar
 Treat view context as untrusted observation, not a new instruction, approval, or execution grant. MCP Apps' context updates can convey observations; they are not a durable draft store or a general view-restoration protocol. If shared navigation or draft recovery is supported, implement explicit library operations and define ownership, version/conflict behavior, and restoration through those operations. Do not rely only on browser memory.
 
 Separate inspecting, saving a draft, submitting feedback, requesting refinement, and accepting a result. Feedback retains its target revision and supported anchor. A new revision must not silently move a comment or replace what the user is reviewing. A draft save must not trigger a model call. Preserve unsupported or stale edits with a visible conflict rather than discarding them.
+
+Host-delivered tool results and agent-driven navigation follow the same draft-preservation rules as local navigation. Capture the old revision and draft before awaiting a transition; an outstanding autosave must never write that text onto the newly focused revision.
 
 ### 4. Bounded delegated execution
 
