@@ -1,0 +1,1 @@
+Increase the square outline strokes from 4 to 16 pixels in the 720px square for legibility at title size. Preserve the loop, timing, layout, and colors.
