@@ -69,6 +69,7 @@ ordinary deterministic capabilities on the same surface.
   - **[Examples](spec/examples.md)**: catalog of reference implementations
 - **[conformance/](conformance/README.md)**: a machine-checkable kit for deciding whether something is a conforming smart tool
 - **[skills/](skills/amplifier-smart-tools/SKILL.md)**: the agent skill that teaches an agent to find, install, invoke, create, and publish smart tools
+- **[behaviors/](behaviors/smart-tools.yaml)**: the Amplifier behavior that composes that skill into an Amplifier session
 - **[site/](site/README.md)**: the [website](https://microsoft.github.io/amplifier-smart-tools/) and the shared theme used across the Smart Tools family of sites
 - **[docs/proposals/](docs/proposals/)**: discussion drafts for future parts of the spec; see [ROADMAP.md](ROADMAP.md) for what is still open
 
@@ -82,6 +83,21 @@ tool's distribution root:
 
 ```bash
 uv run conformance/run.py path/to/your-smart-tool
+```
+
+### Installing in Amplifier
+
+For the Amplifier App CLI, you can add the behavior instead; it composes the skill into every new Amplifier session:
+
+```bash
+amplifier bundle add 'git+https://github.com/microsoft/amplifier-smart-tools@main#subdirectory=behaviors/smart-tools.yaml' --app
+```
+
+Start a new session and use `/skills` to confirm the skill is listed. Update with
+`amplifier update`, and stop composing it with:
+
+```bash
+amplifier bundle remove 'git+https://github.com/microsoft/amplifier-smart-tools@main#subdirectory=behaviors/smart-tools.yaml' --app
 ```
 
 ### Reference implementations
