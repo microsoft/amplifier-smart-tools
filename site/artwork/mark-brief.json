@@ -1,0 +1,11 @@
+{
+  "title": "Amplifier Smart Tools / mark loop",
+  "intent": "Animate the supplied small three-square geometric logo as a quiet seamless 8-second loop. Preserve three nested antique-gold outlined squares with subtle relative rotations on solid #f6f4ee paper. They breathe apart with small rotation changes, align briefly into a coherent concentric arrangement, then return to their starting rotations. All squares always visible, no fade in/out, no cuts, no text or circles. Keep it legible when scaled to 32 pixels. Use restrained 4px strokes at the central 720px master square. The outer square occupies about 470px with generous margins for rotation. Center at full-frame (640,360). All art inside x=280..1000 and y=0..720. Exact starting and ending positions, rotations, opacity match for a continuous loop. Fixed camera. Reconstruct the reference geometry with vectors rather than rotating a single image.",
+  "context": "User approved the existing static website illustration and wants its dots to move and converge in a square looping GIF. A separate small logo-mark GIF belongs in the title. Website captions remain outside the media; do not render any lettering. This request authorizes use of the supplied original artwork as reference.",
+  "identity": "",
+  "identity_version": "8abf2274a40146f58f9eeec166e35304",
+  "reference_id": null,
+  "reference_start": 0.0,
+  "cues": [],
+  "duration": 8.0
+}

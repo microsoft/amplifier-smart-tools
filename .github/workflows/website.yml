@@ -1,0 +1,60 @@
+name: Website
+
+on:
+  pull_request:
+    paths: ['site/**', 'spec/**', 'docs/images/**', 'tools/**', '.github/workflows/website.yml']
+  push:
+    branches: [main]
+    paths: ['site/**', 'spec/**', 'docs/images/**', 'tools/**', '.github/workflows/website.yml']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish this revision to GitHub Pages
+        type: boolean
+        default: false
+      family_owner:
+        description: Owner of the overview and catalog sites (robotdad for fork previews)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install website build dependencies
+        run: python -m pip install -r site/requirements.txt
+      - name: Build website
+        env:
+          FAMILY_OWNER: ${{ inputs.family_owner || (github.repository_owner == 'microsoft' && 'microsoft' || 'robotdad') }}
+        run: python site/theme/build.py --family-owner "$FAMILY_OWNER"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy website
+        id: deployment
+        uses: actions/deploy-pages@v4
