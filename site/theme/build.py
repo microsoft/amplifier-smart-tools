@@ -120,12 +120,18 @@ def tool_page(config, args):
         video = './assets/' + Path(config['video']).name
         media = f'<video data-demo-video controls muted loop playsinline preload="metadata" poster="{image}" width="{config["width"]}" height="{config["height"]}" aria-label="{esc(config["alt"])}"><source src="{video}" type="video/mp4">{link(video,"Watch the demo")}</video>'
         media_link = f'<button class="motion-toggle" data-motion-toggle hidden type="button" aria-pressed="false">Pause motion</button> {link(video,"Watch full size")}'
+    capability_sections = ''
+    for demo in config.get('capability_demos', []):
+        demo_video = './assets/' + Path(demo['video']).name
+        demo_poster = './assets/' + Path(demo['image']).name
+        capability_sections += f'''<section class="section" id="{esc(demo['id'])}"><div class="section-heading"><div><p class="eyebrow">{esc(demo['eyebrow'])}</p><h2>{esc(demo['title'])}</h2></div><p>{esc(demo['description'])}</p></div><figure class="tool-figure"><div class="product-image"><video data-demo-video controls muted loop playsinline preload="metadata" poster="{demo_poster}" width="{demo['width']}" height="{demo['height']}" aria-label="{esc(demo['alt'])}"><source src="{demo_video}" type="video/mp4">{link(demo_video, 'Watch the demo')}</video></div><figcaption class="image-caption"><span>{esc(demo['caption'])}</span><span class="demo-actions"><button class="motion-toggle" data-motion-toggle hidden type="button" aria-pressed="false">Pause motion</button> {link(demo_video, 'Watch full size')}</span></figcaption></figure></section>'''
     steps = ''.join(f'<li><h3>{esc(t)}</h3><p>{esc(p)}</p></li>' for t,p in config['steps'])
     details = ''.join(f'<article><h3>{esc(t)}</h3><p>{esc(p)}</p></article>' for t,p in config['details'])
     return f'''<section class="hero tool-hero"><div class="hero-grid"><div><h1>{esc(config['name'])}</h1><p class="promise">{esc(config['promise'])}</p></div><div><p class="lede">{esc(config['description'])}</p><div class="actions">{link('#get-started','Get started','button primary')}{link(repo,'View on GitHub','button')}</div></div></div></section>
     <figure class="tool-figure"><div class="product-image">{media}</div><figcaption class="image-caption"><span>{esc(config['caption'])}</span><span class="demo-actions">{media_link}</span></figcaption></figure>
     <section class="section two-col"><div><p class="eyebrow">How it works</p><h2>{esc(config['flow_title'])}</h2><p style="margin-top:24px">{esc(config['flow_intro'])}</p></div><ol class="numbered">{steps}</ol></section>
     <section class="section"><div class="section-heading"><div><p class="eyebrow">Made for real work</p><h2>{esc(config['detail_title'])}</h2></div></div><div class="detail-grid">{details}</div></section>
+    {capability_sections}
     <section class="section two-col" id="get-started"><div><p class="eyebrow">Get started</p><h2>Bring it to<br>your agent.</h2><p style="margin-top:24px">Start with the outcome you want. Your agent can install the tool and use its help to carry out the work.</p>{code_box(config['prompt'],'A starting prompt','prompt')}</div><div><h3>Help your agent can use.</h3><p>Amplifier Smart Tools provide help in skill format: instructions your agent can read to understand capabilities, inputs, and how to use the tool. Ask your agent to read <code>--help</code> before getting started.</p>{code_box(config['install'],'Terminal','install')}<p class="note">{esc(config['prerequisites'])}</p><p class="note">{esc(config['model_note'])}</p><div class="compact-links">{link(repo+'/blob/main/'+config['guide'],'Setup and usage guide')}{link(repo+'#readme','Full documentation')}</div></div></section>
     <section class="section"><div class="section-heading"><div><p class="eyebrow">Part of the same family</p><h2>Keep making.</h2></div><p>Each tool stands on its own. Explore the others when your work takes you there.</p></div>{related(config['related'],args)}</section>'''
 
@@ -280,10 +286,10 @@ def main():
     for asset_dir in (THEME/'assets', root/'site/assets'):
         if asset_dir.is_dir():
             shutil.copytree(asset_dir, out/'assets', dirs_exist_ok=True)
-    for media_key in ('image', 'video'):
-        if not config.get(media_key):
-            continue
-        source = (root/config[media_key]).resolve()
+    media_paths = [config[k] for k in ('image', 'video') if config.get(k)]
+    media_paths += [demo[k] for demo in config.get('capability_demos', []) for k in ('image', 'video')]
+    for media_path in media_paths:
+        source = (root/media_path).resolve()
         if not source.is_relative_to(root):
             raise ValueError('Media must belong to the repository')
         shutil.copy2(source,out/'assets'/source.name)
