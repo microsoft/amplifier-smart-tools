@@ -1,6 +1,6 @@
 # Amplifier Smart Tools
 
-[Website source and preview instructions](site/README.md)
+[Website](https://microsoft.github.io/amplifier-smart-tools/)
 
 Smart Tools is a format for packaging domain expertise into tools that any agent can use.
 This repo contains the specification and its conformance kit, with links to
