@@ -1,0 +1,10 @@
+bundle:
+  name: smart-tools-behavior
+  version: 0.1.0
+  description: Adds the Amplifier Smart Tools skill to an existing Skills-equipped host.
+
+tools:
+  - module: tool-skills
+    config:
+      skills:
+        - "git+https://github.com/microsoft/amplifier-smart-tools@main#subdirectory=skills"
