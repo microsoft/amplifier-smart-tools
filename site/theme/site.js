@@ -44,12 +44,17 @@ if (search) {
 
 // GIFs have no pause API. Use a matching still when motion is paused or reduced.
 const motionImages = [...document.querySelectorAll('[data-motion-src]')];
-if (motionImages.length) {
+const demoVideos = [...document.querySelectorAll('[data-demo-video]')];
+if (motionImages.length || demoVideos.length) {
   const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
   let paused = preference.matches;
   function setMotion() {
     for (const img of motionImages) {
       img.src = paused ? img.dataset.stillSrc : img.dataset.motionSrc;
+    }
+    for (const video of demoVideos) {
+      if (paused) video.pause();
+      else video.play().catch(() => { /* Native controls remain available. */ });
     }
     for (const button of document.querySelectorAll('[data-motion-toggle]')) {
       button.hidden = false;

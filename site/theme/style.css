@@ -579,7 +579,8 @@ p+p {
   display: block;
 }
 
-.product-image img {
+.product-image img,
+.product-image video {
   width: 100%;
   max-height: 650px;
   object-fit: contain;
@@ -1161,3 +1162,6 @@ p+p {
 #get-started .compact-links { margin-top: 24px; }
 @media(max-width:900px) { #get-started.two-col { gap: 36px; } }
 @media(max-width:620px) { #get-started.two-col { grid-template-columns: minmax(0,1fr); gap: 40px; } }
+
+.product-image video { display: block; height: auto; }
+.demo-actions { display: flex; align-items: center; gap: 18px; flex-shrink: 0; }

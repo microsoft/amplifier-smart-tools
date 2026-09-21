@@ -79,3 +79,12 @@ trigger the Website build; publishing the updated site remains explicit.
 The square overview illustration lives in `site/assets/`. Unfold authors and renders the animation from the approved artwork. Outtake
 converts the square export to an inline GIF.
 See `site/artwork/README.md` for provenance and the retained MP4 masters.
+
+## Tool demo videos
+
+Tool pages may set `video` to a repository-relative MP4 path. With video present,
+`image` is the poster, and the existing dimensions, alt text and caption describe
+the demo. The player supports native controls and muted looping playback.
+The shared motion toggle controls both GIF branding and demo playback; reduced
+motion disables initial playback. Without JavaScript, native video controls remain
+available. Sync the theme to an explicit tool checkout to adopt this capability.
