@@ -1,15 +1,12 @@
 # Amplifier Smart Tools
 
-[Website](https://microsoft.github.io/amplifier-smart-tools/)
-
 Smart Tools is a format for packaging domain expertise into tools that any agent can use.
-This repo contains the specification and its conformance kit, with links to
-reference implementations, the catalog, and its discovery skill.
+New here? Start with the [website](https://microsoft.github.io/amplifier-smart-tools/).
 
-Install the [Smart Tools discovery skill](https://github.com/microsoft/amplifier-smart-tools-catalog) to help your coding agent find and use Smart Tools:
+Install the [Smart Tools skill](skills/amplifier-smart-tools/SKILL.md) to help your agent find, use, and create Smart Tools:
 
 ```bash
-npx skills add microsoft/amplifier-smart-tools-catalog --skill amplifier-smart-tools-catalog
+npx skills add microsoft/amplifier-smart-tools
 ```
 
 ## What are Smart Tools?
@@ -71,6 +68,9 @@ ordinary deterministic capabilities on the same surface.
   - **[Packaging](spec/packaging.md)**: publishing, installing, and launching a smart tool
   - **[Examples](spec/examples.md)**: catalog of reference implementations
 - **[conformance/](conformance/README.md)**: a machine-checkable kit for deciding whether something is a conforming smart tool
+- **[skills/](skills/amplifier-smart-tools/SKILL.md)**: the agent skill that teaches an agent to find, install, invoke, create, and publish smart tools
+- **[site/](site/README.md)**: the [website](https://microsoft.github.io/amplifier-smart-tools/) and the shared theme used across the Smart Tools family of sites
+- **[docs/proposals/](docs/proposals/)**: discussion drafts for future parts of the spec; see [ROADMAP.md](ROADMAP.md) for what is still open
 
 ### Conformance
 
@@ -87,11 +87,6 @@ uv run conformance/run.py path/to/your-smart-tool
 ### Reference implementations
 
 [spec/examples](spec/examples.md) lists reference smart tools.
-
-### Discover Smart Tools and Catalog
-
-The [Amplifier Smart Tools Catalog](https://github.com/microsoft/amplifier-smart-tools-catalog)
-lists available tools and provides a shared discovery skill for coding agents.
 
 ### Roadmap
 
