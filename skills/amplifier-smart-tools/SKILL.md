@@ -117,7 +117,7 @@ Use `smart-tool-creator`, itself a smart tool that scaffolds, checks, and extend
 tools.
 
 ```bash
-uv tool install git+https://github.com/DavidKoleczek/amplifier-smart-tool-creator
+uv tool install git+https://github.com/microsoft/amplifier-smart-tool-creator
 smart-tool-creator --help
 ```
 
