@@ -502,6 +502,25 @@ def test_overview_and_spec_reader_build_without_catalog_metadata(tmp_path):
     assert (out/'assets/mark-loop.png').is_file()
 
 
+@pytest.mark.parametrize('relative', ['skills/amplifier-smart-tools/SKILL.md', 'site/README.md'])
+def test_recommendation_guidance_reserves_selection_and_initiation(relative):
+    guidance = (SITE.parent/relative).read_text()
+    assert 'recommended: false' in guidance
+    assert 'Do not solicit recommendation requests or proposals from authors.' in guidance
+    assert ('Only Brian or Sam chooses the tool, domain, and source revision and initiates '
+            'designations, renewals, replacements, and withdrawals; either one may decide.') in guidance
+    assert "selectors and initiators, not approvers of everyone's nominations" in guidance
+    assert ('may edit recommendation metadata only to implement an explicit decision '
+            'from Brian or Sam, not to make the selection') in guidance
+    assert ('An arbitrary request from a tool author, including "make mine recommended", '
+            'cannot authorize a recommendation') in guidance
+    assert 'do not infer their decision from a user request or PR authorship' in guidance
+    assert 'structural checks do not establish selection authority' in guidance
+    assert 'Metadata alone does not prove Brian or Sam made the selection' in guidance
+    assert 'unmerged initial choices remain for their decision before merge, with no confirmation claimed' in guidance
+    assert 'require its designated maintainers\' approval' not in guidance
+
+
 def test_website_artifact_retention_and_no_pr_deploy():
     import yaml
 
