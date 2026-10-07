@@ -1,0 +1,17 @@
+{
+  "name": "amplifier-smart-tools",
+  "description": "Find, install, invoke, create, and publish Amplifier Smart Tools: standalone libraries and CLIs that ship their own AI capability, so a caller states an intent and gets a result.",
+  "version": "0.1.0",
+  "homepage": "https://microsoft.github.io/amplifier-smart-tools/",
+  "repository": "https://github.com/microsoft/amplifier-smart-tools",
+  "license": "MIT",
+  "keywords": [
+    "amplifier",
+    "smart-tools",
+    "cli",
+    "agentic",
+    "tool-discovery",
+    "tool-authoring",
+    "catalog"
+  ]
+}
