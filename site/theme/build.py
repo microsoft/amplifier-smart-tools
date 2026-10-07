@@ -8,6 +8,10 @@ import shutil
 import unicodedata
 from pathlib import Path
 from urllib.parse import quote, urlsplit, urlunsplit
+from catalog_metadata import (
+    catalog_sources, load_catalog_metadata, read_json, read_snapshot,
+    recommendation_state, validate_pointer,
+)
 
 THEME = Path(__file__).resolve().parent
 FAMILY = json.loads((THEME / 'family.json').read_text())
@@ -140,26 +144,31 @@ def tool_page(config, args):
 
 
 def catalog(config, args, root):
-    import yaml
+    domains, listings = load_catalog_metadata(root)
     entries = []
     platforms = set()
-    for source in sorted((root/'tools').glob('*/source.json')):
+    for source in catalog_sources(root):
         slug = source.parent.name
-        pointer = json.loads(source.read_text())
+        pointer = validate_pointer(read_json(source, root))
         repo = safe_url(pointer['repository']).removesuffix('.git')
-        manifest = source.parent/'SMART_TOOL.md'
-        provenance = source.parent/'provenance.json'
         description = 'No manifest snapshot is available yet. Inspect the source repository for current guidance.'
-        meta, prov = {}, {}
-        if manifest.exists() and provenance.exists():
-            raw = manifest.read_text()
-            if not raw.startswith('---\n'):
-                raise ValueError(f'{slug}: missing YAML front matter')
-            meta = yaml.safe_load(raw.split('---',2)[1])
-            if not isinstance(meta, dict) or not isinstance(meta.get('description'), str):
-                raise ValueError(f'{slug}: invalid manifest description')
+        meta, prov = read_snapshot(source.parent, root)
+        if meta:
             description = meta['description'].strip()
-            prov = json.loads(provenance.read_text())
+        listing = listings.get(slug)
+        state = recommendation_state(pointer, prov, listing, bool(meta))
+        domain = domains[listing['domain']] if listing else None
+        classification = ''
+        if domain:
+            badge = ''
+            if state != 'ordinary':
+                label = 'Recommended' if state == 'recommended' else 'Recommendation needs review'
+                badge = f'<span class="recommendation {state}">{label}</span>'
+            classification = f'<div class="catalog-domain"><span>{html.escape(domain["label"], quote=True)}</span>{badge}</div>'
+            if state != 'ordinary':
+                classification += f'<p class="recommendation-note">Catalog recommendation for this domain at recorded source revision <code>{esc(listing["reviewed_source"]["commit"])}</code>. Not a certification or a check of local usability.</p>'
+                if state == 'needs-review':
+                    classification += '<p class="recommendation-note">The pointer, snapshot, and reviewed source do not all agree, or the snapshot is missing. No recommendation preference applies.</p>'
         tool_platforms = meta.get('platforms', [])
         if not isinstance(tool_platforms, list) or not all(isinstance(p,str) for p in tool_platforms):
             raise ValueError(f'{slug}: invalid platforms')
@@ -184,10 +193,21 @@ def catalog(config, args, root):
         launch = link(page_url(showcase,args),'Explore tool') if showcase else ''
         search = esc(' '.join([str(name),description,*use_cases,*tool_platforms]).lower())
         tags = ''.join('<span class="tag">'+esc(p)+'</span>' for p in tool_platforms)
-        entries.append(f'<article class="catalog-card" data-tool="{esc(slug)}" data-platforms="{esc(" ".join(tool_platforms))}" data-search="{search}"><h2>{esc(display_name)}</h2><p>{esc(excerpt)}</p><div class="tool-meta">{tags}</div>{detail}<div class="card-links">{launch}{link(repo,"Repository")}{manifest_link}</div></article>')
+        domain_attr = f' data-domain="{esc(listing["domain"] if listing else "")}"' if domains is not None else ''
+        card = f'<article class="catalog-card" data-tool="{esc(slug)}" data-platforms="{esc(" ".join(tool_platforms))}" data-search="{search}"{domain_attr}><h2>{esc(display_name)}</h2>{classification}<p>{esc(excerpt)}</p><div class="tool-meta">{tags}</div>{detail}<div class="card-links">{launch}{link(repo,"Repository")}{manifest_link}</div></article>'
+        entries.append((state != 'recommended', slug, card))
+    entries = [card for _, _, card in sorted(entries)]
     options = ''.join(f'<option value="{esc(p)}">{esc(p)}</option>' for p in sorted(platforms))
+    domain_control, domain_details = '', ''
+    empty_hint = 'Try a broader term or another platform.'
+    if domains is not None:
+        domain_options = ''.join(f'<option value="{esc(identity)}">{html.escape(domain["label"], quote=True)}</option>' for identity, domain in sorted(domains.items()))
+        domain_control = f'<div class="domain-field"><label for="domain">Primary domain</label><select id="domain" aria-describedby="domain-scopes"><option value="">All domains</option>{domain_options}<option value="__unclassified__">Not yet classified</option></select></div>'
+        scopes = ''.join(f'<dt>{html.escape(domain["label"], quote=True)}</dt><dd>{html.escape(domain["scope"], quote=True)}</dd>' for _, domain in sorted(domains.items()))
+        domain_details = f'<details class="domain-scopes" id="domain-scopes"><summary>Domain labels and scopes</summary><dl>{scopes}</dl></details>'
+        empty_hint = 'Try a broader term, another platform, or another domain.'
     return f'''<section class="hero catalog-hero"><p class="eyebrow">Amplifier Smart Tools / Catalog</p><h1>Find a tool.<br>Make something happen.</h1><p class="lede">Domain expertise you can put to work. Explore the tools, inspect their requirements, and bring the right one to your agent.</p><div class="actions">{link('#discovery','Get the skill','button primary')}{link(repo_url('catalog')+'#contributing','Add a tool','text-link')}</div></section>
-    <section aria-label="Browse smart tools"><div class="filters"><div class="search-field"><label for="tool-search">Search tools and use cases</label><input id="tool-search" type="search" placeholder="Try video, research, or presentations" autocomplete="off"></div><div><label for="platform">Declared platform</label><select id="platform"><option value="">All platforms</option>{options}</select></div></div><p class="catalog-count" id="result-count" role="status">{len(entries)} tools</p><noscript><p>Search requires JavaScript. All tools are listed below.</p></noscript><div class="catalog-grid">{''.join(entries)}</div><div id="empty-results" class="empty" hidden><h3>No matching tools.</h3><p>Try a broader term or another platform.</p><button id="clear-filters" class="button">Clear filters</button></div><p class="catalog-note">Descriptions and declared platforms come from the tools' own manifest snapshots. A listing does not establish installation or usability in your environment. Expand an entry to inspect its source revision and refresh time.</p></section>
+    <section aria-label="Browse smart tools"><div class="filters"><div class="search-field"><label for="tool-search">Search tools and use cases</label><input id="tool-search" type="search" placeholder="Try video, research, or presentations" autocomplete="off"></div><div><label for="platform">Declared platform</label><select id="platform"><option value="">All platforms</option>{options}</select></div>{domain_control}</div>{domain_details}<p class="catalog-count" id="result-count" role="status">{len(entries)} tools</p><noscript><p>Search requires JavaScript. All tools are listed below.</p></noscript><div class="catalog-grid">{''.join(entries)}</div><div id="empty-results" class="empty" hidden><h3>No matching tools.</h3><p>{empty_hint}</p><button id="clear-filters" class="button">Clear filters</button></div><p class="catalog-note">Descriptions and declared platforms come from the tools' own manifest snapshots. A listing does not establish installation or usability in your environment. Expand an entry to inspect its source revision and refresh time.</p></section>
     <section class="section two-col" id="discovery"><div><p class="eyebrow">Let your agent help</p><h2>One skill.<br>The whole catalog.</h2><p style="margin-top:24px">Ask your agent to find a Smart Tool for your task. It can inspect the manifest, check the local environment, and follow the selected tool's own guidance.</p></div><div class="callout"><h3>Install the skill.</h3>{code_box(SKILL_INSTALL,'Terminal','install')}<p class="note">This installs guidance for your agent, not the tools or their credentials.</p>{link(repo_url('overview')+SKILL_PATH,'Read the skill','text-link')}</div></section>'''
 
 

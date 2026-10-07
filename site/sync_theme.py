@@ -15,7 +15,7 @@ for checkout in args.checkouts:
     target = root/'site/theme'
     if target == source:
         continue
-    for name in ('build.py', 'style.css', 'site.js', 'family.json', 'LICENSE'):
+    for name in ('build.py', 'catalog_metadata.py', 'style.css', 'site.js', 'family.json', 'LICENSE'):
         target.mkdir(exist_ok=True)
         shutil.copy2(source/name, target/name)
     if (source/'assets').is_dir():

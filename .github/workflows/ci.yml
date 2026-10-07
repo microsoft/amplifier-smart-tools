@@ -22,3 +22,11 @@ jobs:
         run: >-
           uv run --with pytest --with-requirements conformance/run.py
           pytest conformance/tests/ -q
+
+      - name: Site metadata and renderer tests
+        run: >-
+          uv run --with pytest --with-requirements site/requirements.txt
+          pytest site/tests/ -q
+
+      - name: Site filter tests
+        run: node --test site/tests/test_filters.cjs

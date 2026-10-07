@@ -19,6 +19,7 @@ for (const button of document.querySelectorAll('[data-copy]')) {
 const search = document.getElementById('tool-search');
 if (search) {
   const platform = document.getElementById('platform');
+  const domain = document.getElementById('domain');
   const cards = [...document.querySelectorAll('[data-tool]')];
   const count = document.getElementById('result-count');
   const empty = document.getElementById('empty-results');
@@ -27,7 +28,9 @@ if (search) {
     let visible = 0;
     for (const card of cards) {
       const matches = words.every(word => card.dataset.search.includes(word)) &&
-        (!platform.value || card.dataset.platforms.split(' ').includes(platform.value));
+        (!platform.value || card.dataset.platforms.split(' ').includes(platform.value)) &&
+        (!domain || !domain.value || (domain.value === '__unclassified__'
+          ? !card.dataset.domain : card.dataset.domain === domain.value));
       card.hidden = !matches;
       if (matches) visible++;
     }
@@ -36,8 +39,11 @@ if (search) {
   }
   search.addEventListener('input', filter);
   platform.addEventListener('change', filter);
+  if (domain) domain.addEventListener('change', filter);
   document.getElementById('clear-filters').addEventListener('click', () => {
-    search.value = ''; platform.value = ''; filter(); search.focus();
+    search.value = ''; platform.value = '';
+    if (domain) domain.value = '';
+    filter(); search.focus();
   });
   filter();
 }
