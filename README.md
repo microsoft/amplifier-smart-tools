@@ -1,9 +1,9 @@
 # Amplifier Smart Tools
 
 Smart Tools is a format for packaging domain expertise into tools that any agent can use.
-New here? Start with the [website](https://microsoft.github.io/amplifier-smart-tools/).
+Learn more and explore available tools on the [website](https://microsoft.github.io/amplifier-smart-tools/).
 
-Install the [Smart Tools skill](skills/amplifier-smart-tools/SKILL.md) to help your agent find, use, and create Smart Tools:
+To get started install the [Smart Tools skill](skills/amplifier-smart-tools/SKILL.md) which helps your agent find, use, and create Smart Tools:
 
 ```bash
 npx skills add microsoft/amplifier-smart-tools
@@ -31,33 +31,19 @@ my-smart-tool/
 
 ## Why Smart Tools?
 
-Hard-won domain expertise tends to stay where it was built, consumable only from
-inside the harness it was built for and only with the right context loaded. Smart
-tools package that expertise so it travels:
-
-- **Consumable anywhere**: Copilot, Claude Code, a Python service, a shell
-  script, or any future agent.
-- **Useful without a model**: deterministic paths run with no provider
-  configured, so a caller that never touches the smart commands never needs
-  credentials.
-- **The knowledge stays in the tool**: the caller states an intent and gets a
-  structured result it can hand straight to code.
+Smart Tools bring their own "agent harnesses" inside which can be isolated without living inside another host and therefore behave the same whether called inside Copilot, Claude Code, a voice assistant using a fast model, etc.
+This means that you get powerful capabilities out of the box that will work well wherever they are used, but also have lower level building blocks so they can be composed in new ways.
+This approach has benefits when evaluating capabilities as author's evaluate the tool once, rather than within every host's differences. They can optimize for cost, quality, or local inference.
 
 ## How is this different from Skills, Agent Plugins, or MCP?
 
-A smart tool's smart capabilities invoke a model themselves, and may bundle their own
-harnesses or agents. With Skills, Agent Plugins, and MCP, it is the host that
-supplies the intelligence and determines how to use them. With a smart tool the
-intelligence is baked in, so the caller states what it wants and gets a result
-back. When a smart tool is invoked by another agent, it is similar to delegating
-to a sub-agent: the domain expertise, context, and trajectory (message history)
-stay inside the tool, and the result is what comes back. A smart tool might even
-use skills, plugins, or MCP servers internally to implement its own capabilities.
- 
-The caller does not have to be an agent. Every smart tool is a library
-underneath, so apps, scripts, and jobs can integrate one directly, as can any
-agent. And not every capability is a smart one. A smart tool also exposes
-ordinary deterministic capabilities on the same surface.
+Agent Skills gave users a way to share prompts and scripts, and MCP gave users a way to connect agents to more things. 
+Nothing gives users an easy way to use and share their tools and workflows in a way that is easily *composable* and easy to *evaluate* once in many different use cases and hosts.
+When a smart tool is invoked by another agent, it is similar to delegating to a sub-agent: the domain expertise, context, and trajectory (message history) stay inside the tool, and the result is what comes back. 
+A smart tool might even use skills, plugins, or MCP servers internally to implement its own capabilities. 
+The caller does not have to be an agent as Skills and MCPs are usually used.
+Every smart tool is a library underneath, so apps, scripts, and jobs can integrate one directly.
+And not every capability is a smart one. A smart tool can also expose ordinary deterministic capabilities.
 
 ## What's in this repository
 
