@@ -52,6 +52,7 @@ model.
 <skill_content name="doc-summarizer">
 Skill directory: /home/user/.venv/lib/python3.13/site-packages/doc_summarizer
 Repository: https://github.com/example/doc-summarizer
+Version: 1.4.0
 Relative paths in this skill are relative to the skill directory.
 
 # doc-summarizer
@@ -85,6 +86,9 @@ alongside.
 **Repository** is the tool's canonical source, read from the package metadata, for a caller
 that can run the tool but cannot read its files. Omitted when the package declares none.
 
+**Version** is the installed tool's version, the manifest's `version`.
+Callers can use this to check against upstream if their tool is up to date.
+
 **The body** is the manifest body under a heading carrying the tool's name. Markdown, no
 frontmatter, no usage line. It says what an agent would otherwise get wrong: when to reach
 for the tool and when not, install and prerequisites, worked invocations, sharp edges, where
@@ -107,8 +111,7 @@ call it.
 path resolves after installation, so the files ship inside the package. Omitted when there
 is nothing to list.
 
-The library exposes the skill and each piece it is built from. The CLI prints it and adds
-nothing.
+The library exposes the skill and each piece it is built from. The CLI prints it and adds nothing.
 
 ### Shipping an Agent Skill alongside
 
@@ -118,8 +121,8 @@ Claude Code, Copilot, or any harness that discovers `SKILL.md` files. Through it
 host learns the tool exists and how to start using it without anyone teaching it what a
 smart tool is.
 
-The skill carries the manifest's name and description, the install commands, and the
-instruction to run `--help` and follow it. Nothing more. The tool brings the rest with it
+The skill carries the manifest's name and description, the install and upgrade commands,
+and the instruction to run `--help` and follow it. Nothing more. The tool brings the rest with it
 through `--help`, so the skill stays correct when the tool changes and there is one place
 the guidance is written.
 
@@ -185,6 +188,10 @@ and output artifacts where the caller asked for them.
 A tool that writes beside its own source is relying on having been run from a checkout. It
 scatters files into the tree it was installed from, and those files reach a repository, a
 pull request, or a published package without anyone deciding they should.
+
+## Version
+
+`-V` and `--version` print the CLI tool's version and exit 0.
 
 ## Failure
 

@@ -59,6 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
     # THE DEFECT: only the long flag is registered, so `-h` is an unknown argument.
     parser = _EnvelopeParser(prog="samplegood", add_help=False)
     parser.add_argument("--help", action=_SkillAction)
+    parser.add_argument("-V", "--version", action="version", version="0.1.0")
     sub = parser.add_subparsers(dest="verb")
     p = sub.add_parser("stats", help="[deterministic] count text")
     p.add_argument("--text", default=None)

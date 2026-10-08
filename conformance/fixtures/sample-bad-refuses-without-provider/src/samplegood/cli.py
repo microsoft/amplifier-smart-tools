@@ -40,6 +40,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="samplegood", epilog="Model-backed capabilities: summarize.")
+    parser.add_argument("-V", "--version", action="version", version="0.1.0")
     sub = parser.add_subparsers(dest="verb")
     p = sub.add_parser("stats", help="[deterministic] count text")
     p.add_argument("--text", default=None)

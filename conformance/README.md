@@ -38,7 +38,7 @@ look rather than searching for it.
 
 ## What it checks
 
-Sixteen rules, each carrying the spec sentence it operationalizes. Where a rule
+Seventeen rules, each carrying the spec sentence it operationalizes. Where a rule
 goes beyond the spec, it says so instead of citing a sentence that does not
 exist.
 
@@ -56,13 +56,14 @@ exist.
 | `manifest-single-per-root` | No second `SMART_TOOL.md` under the root, not counting nested distributions. Whether one exists at all is `manifest-present`. |
 | `loads-without-provider` | With provider env scrubbed, the tool loads (`--help` exits 0) -- it does not refuse to load. |
 | `help-flags-supported` | Both `-h` and `--help` are answered and exit 0, and `--help` prints something. The spec permits them to render the same text, and the shape of the skill `--help` renders is not parsed here. |
+| `cli-version` | Both `-V` and `--version` exit 0 with provider env scrubbed, and each prints the manifest `version` on stdout. |
 | `capability-help-supported` | The capability named in `deterministic_smoke` answers `<capability> --help` with exit 0 and output of its own. |
 | `deterministic-capability-runs` | A declared deterministic capability runs with provider env scrubbed. |
 | `failure-exits-non-zero` | A bad invocation exits non-zero. |
 | `no-hang-stdin-closed` | A run with stdin closed completes within the bounded timeout. |
 
 The descriptor rule and the nine `manifest-*` rules are pure file inspection and
-run against any tool in any language. The six runtime rules need to *invoke* the
+run against any tool in any language. The seven runtime rules need to *invoke* the
 tool (see below); when no invocation is possible they SKIP honestly.
 
 The frontmatter is parsed as YAML and validated against a schema declared once,
@@ -102,7 +103,7 @@ tool reads or writes; the scratch directory is containment for the run.
 
 This is the kit's only source. It never installs the tool under test: present it
 with one that already runs, from source or installed onto the path. Without a
-descriptor, `descriptor-present` FAILs and the six runtime rules SKIP rather
+descriptor, `descriptor-present` FAILs and the seven runtime rules SKIP rather
 than passing or failing.
 
 A subdirectory with its own descriptor is a nested distribution, and its manifest
@@ -110,7 +111,7 @@ is not counted against the parent.
 
 ### Provider scrubbing
 
-Every probe the kit runs -- both help flags, the capability help probe, the
+Every probe the kit runs -- both help flags, both version flags, the capability help probe, the
 deterministic smoke invocation, and the bad invocation -- runs with provider/model environment variables removed
 (anything matching `*_API_KEY`, `ANTHROPIC*`, `OPENAI*`, `*_MODEL`, `*PROVIDER*`,
 ...) so it observes the tool as a caller with **no** model credentials would.
