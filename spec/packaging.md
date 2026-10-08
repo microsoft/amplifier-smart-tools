@@ -12,6 +12,12 @@ setup is more than placing a package: provisioning a runtime, compiling a native
 component, installing system prerequisites. Such a script installs the tool and nothing
 else.
 
+## Updating
+
+Tools can be updated through the channel they were installed from.
+Each tool specifies its version and keeps it consistent across any pieces it exposes to users (ex. the lib, cli, optional skills, etc).
+For example, a tool installed with `uv tool install git+<repository>` is updated with `uv tool upgrade <distribution>`.
+
 ## Ecosystem and runner
 
 Two facts describe how a published tool is obtained and started:

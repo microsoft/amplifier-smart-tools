@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""samplegood: the conformance kit's known-good smart tool. Library first, thin argparse CLI."""
+"""DEFECT: `-V` prints the version but `--version` is not recognised.
+
+Violates: cli-version. Everything else holds: this is sample-good with only the
+long version flag missing.
+"""
 
 from __future__ import annotations
 
@@ -88,7 +92,7 @@ def short_help() -> str:
         "",
         "  -h                              this summary",
         "  --help                          this tool's skill, for an agent driving it",
-        "  -V, --version                   this tool's version",
+        "  -V                              this tool's version",
         f"  {NAME} <capability> --help  one capability in full",
     ]
     return "\n".join(lines)
@@ -152,7 +156,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = _EnvelopeParser(prog=NAME, add_help=False)
     parser.add_argument("-h", action=_PrintAndExit, render=short_help, help="Terse summary.")
     parser.add_argument("--help", action=_PrintAndExit, render=skill, help="This tool's skill.")
-    parser.add_argument("-V", "--version", action=_PrintAndExit, render=version, help="This tool's version.")
+    # THE DEFECT: only the short flag is registered, so `--version` is an unknown argument.
+    parser.add_argument("-V", action=_PrintAndExit, render=version, help="This tool's version.")
     sub = parser.add_subparsers(dest="verb")
 
     stats = sub.add_parser(

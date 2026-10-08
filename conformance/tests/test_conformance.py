@@ -32,6 +32,7 @@ EXPECTED_PRIMARY = {
     "sample-bad-double-manifest": "manifest-single-per-root",
     "sample-bad-refuses-without-provider": "loads-without-provider",
     "sample-bad-help-no-short-flag": "help-flags-supported",
+    "sample-bad-version-no-long-flag": "cli-version",
     "sample-bad-deterministic-refuses": "deterministic-capability-runs",
     "sample-bad-failure-exits-zero": "failure-exits-non-zero",
     "sample-bad-hang": "no-hang-stdin-closed",
@@ -152,6 +153,55 @@ def test_help_that_prints_nothing_fails(tmp_path: Path):
     assert "prints nothing to stdout" in check["detail"]
 
 
+def test_sample_good_answers_both_version_flags():
+    """Both version flags print the manifest's version."""
+    result = _evaluate("sample-good")
+    check = next(c for c in result["checks"] if c["id"] == "cli-version")
+    assert check["status"] == run.PASS, check["detail"]
+    assert "0.1.0" in check["detail"]
+
+
+def test_version_failure_names_the_flag():
+    """A FAIL says which flag broke, so the author knows what to register."""
+    result = _evaluate("sample-bad-version-no-long-flag")
+    check = next(c for c in result["checks"] if c["id"] == "cli-version")
+    assert check["status"] == run.FAIL
+    assert "'--version' exits 2" in check["detail"]
+    assert "'-V'" not in check["detail"]
+
+
+def test_version_that_is_not_the_manifest_version_fails(tmp_path: Path):
+    """Exiting 0 is not enough: stdout must carry the manifest's version."""
+    tool = tmp_path / "tool"
+    shutil.copytree(FIXTURES_DIR / "sample-good", tool)
+    (tool / "wrong_version_wrapper.py").write_text(
+        "import runpy\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        "if sys.argv[1:] in (['-V'], ['--version']):\n"
+        "    print('9.9.9')\n"
+        "    raise SystemExit(0)\n"
+        "cli = Path(__file__).parent / 'src' / 'samplegood' / 'cli.py'\n"
+        "runpy.run_path(str(cli), run_name='__main__')\n",
+        encoding="utf-8",
+    )
+    descriptor = json.loads((tool / "smart-tool.json").read_text())
+    descriptor["cli_argv"] = ["uv", "run", "--no-project", "wrong_version_wrapper.py"]
+    (tool / "smart-tool.json").write_text(json.dumps(descriptor, indent=2), encoding="utf-8")
+
+    result = run.evaluate(tool, timeout=TIMEOUT)
+    check = next(c for c in result["checks"] if c["id"] == "cli-version")
+    assert check["status"] == run.FAIL
+    assert "does not contain the manifest version '0.1.0'" in check["detail"]
+
+
+def test_cli_version_skips_without_a_manifest_version():
+    """With no manifest version there is nothing to look for, so the rule SKIPs."""
+    result = _evaluate("sample-bad-missing-version")
+    by_id = {c["id"]: c["status"] for c in result["checks"]}
+    assert by_id["cli-version"] == run.SKIP
+
+
 def test_skip_is_honest_never_a_fabricated_pass():
     """A rule that cannot be evaluated is SKIP, not PASS.
 
@@ -221,6 +271,7 @@ def test_runtime_rules_skip_without_a_descriptor(tmp_path: Path):
     for rule in (
         "loads-without-provider",
         "help-flags-supported",
+        "cli-version",
         "capability-help-supported",
         "deterministic-capability-runs",
         "failure-exits-non-zero",

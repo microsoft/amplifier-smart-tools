@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Model-backed capabilities: summarize.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("-V", "--version", action="version", version="0.1.0")
     parser.add_argument("verb", nargs="?", help="stats | summarize")
     parser.add_argument("--text", default="")
     return parser

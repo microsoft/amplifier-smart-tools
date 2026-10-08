@@ -25,13 +25,27 @@ def skill_directory() -> Path:
     return Path(__file__).resolve().parent
 
 
-def manifest_body() -> str:
-    """The Markdown below the manifest's frontmatter."""
+def _manifest_parts() -> tuple[list[str], str]:
+    """The manifest's frontmatter lines and the Markdown below them."""
     lines = (skill_directory() / "SMART_TOOL.md").read_text(encoding="utf-8").splitlines()
     fences = [i for i, line in enumerate(lines) if line.strip() == "---"]
     if len(fences) < 2:
         raise ValueError("SMART_TOOL.md has no closed YAML frontmatter fence")
-    return "\n".join(lines[fences[1] + 1 :]).strip()
+    return lines[fences[0] + 1 : fences[1]], "\n".join(lines[fences[1] + 1 :]).strip()
+
+
+def manifest_body() -> str:
+    """The Markdown below the manifest's frontmatter."""
+    return _manifest_parts()[1]
+
+
+def version() -> str:
+    """The tool's version: the manifest's `version`."""
+    for line in _manifest_parts()[0]:
+        key, sep, value = line.partition(":")
+        if sep and key.strip() == "version":
+            return value.strip().strip("\"'")
+    raise ValueError("SMART_TOOL.md frontmatter has no version")
 
 
 def skill_resources() -> list[str]:
@@ -74,6 +88,7 @@ def short_help() -> str:
         "",
         "  -h                              this summary",
         "  --help                          this tool's skill, for an agent driving it",
+        "  -V, --version                   this tool's version",
         f"  {NAME} <capability> --help  one capability in full",
     ]
     return "\n".join(lines)
@@ -115,7 +130,13 @@ class _PrintAndExit(argparse.Action):
         self.render = render
 
     def __call__(self, parser, namespace, values, option_string=None):
-        sys.stdout.write(self.render() + "\n")
+        try:
+            text = self.render()
+        except (OSError, ValueError) as exc:
+            raise SystemExit(
+                _emit_error("manifest_unreadable", str(exc), "Reinstall the tool; its SMART_TOOL.md ships with it.", 1)
+            ) from exc
+        sys.stdout.write(text + "\n")
         parser.exit(0)
 
 
@@ -131,6 +152,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = _EnvelopeParser(prog=NAME, add_help=False)
     parser.add_argument("-h", action=_PrintAndExit, render=short_help, help="Terse summary.")
     parser.add_argument("--help", action=_PrintAndExit, render=skill, help="This tool's skill.")
+    parser.add_argument("-V", "--version", action=_PrintAndExit, render=version, help="This tool's version.")
     sub = parser.add_subparsers(dest="verb")
 
     stats = sub.add_parser(

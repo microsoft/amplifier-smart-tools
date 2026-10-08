@@ -525,12 +525,15 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
     # in one. Anything the tool writes relative to its working directory lands
     # here and is discarded.
     recipe = discover_recipe(descriptor, descriptor_error, target)
-    help_run = short_help_run = cap_help_run = smoke_run = bad_run = None
+    help_run = short_help_run = version_run = short_version_run = None
+    cap_help_run = smoke_run = bad_run = None
     if recipe.argv is not None:
         scratch = Path(tempfile.mkdtemp(prefix="smart-tools-conformance-"))
         try:
             help_run = run_cli(recipe.argv + ["--help"], scratch, timeout, scrub=True)
             short_help_run = run_cli(recipe.argv + ["-h"], scratch, timeout, scrub=True)
+            version_run = run_cli(recipe.argv + ["--version"], scratch, timeout, scrub=True)
+            short_version_run = run_cli(recipe.argv + ["-V"], scratch, timeout, scrub=True)
             if recipe.smoke:
                 # The first token of the smoke invocation is the capability's name.
                 cap_help_run = run_cli(
@@ -584,6 +587,34 @@ def evaluate(target: str | Path, timeout: float = 20.0) -> dict:
         else:
             add("help-flags-supported", PASS, spec_r2,
                 "both '-h' and '--help' exit 0, and '--help' prints to stdout")
+
+    # R2b cli-version
+    # The manifest's version is what the tool reports, so the kit looks for that
+    # exact string on stdout rather than parsing any particular output format.
+    spec_r2b = "invocation.md: '`-V` and `--version` print the CLI tool's version and exit 0.'"
+    raw_version = fm.get("version") if manifest_ok else None
+    manifest_version = "" if raw_version is None else str(raw_version).strip()
+    if recipe.argv is None:
+        add("cli-version", SKIP, spec_r2b, recipe.reason)
+    elif not manifest_version:
+        add("cli-version", SKIP, spec_r2b, "no manifest version to compare")
+    elif version_run.timed_out or short_version_run.timed_out:
+        which = "--version" if version_run.timed_out else "-V"
+        add("cli-version", SKIP, spec_r2b,
+            f"'{which}' did not complete within timeout (inconclusive; see no-hang)")
+    else:
+        broken = []
+        for flag, probe in (("-V", short_version_run), ("--version", version_run)):
+            if probe.rc != 0:
+                broken.append(f"'{flag}' exits {probe.rc}: {_first_line(probe.err or probe.out)}")
+            elif manifest_version not in probe.out:
+                broken.append(f"'{flag}' exits 0 but stdout does not contain the manifest "
+                              f"version {manifest_version!r}: {_first_line(probe.out)}")
+        if broken:
+            add("cli-version", FAIL, spec_r2b, "; ".join(broken))
+        else:
+            add("cli-version", PASS, spec_r2b,
+                f"both '-V' and '--version' exit 0 and print {manifest_version}")
 
     # R3 capability-help-supported
     # Only the capability the descriptor already names is probed: the kit has no
