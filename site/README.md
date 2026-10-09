@@ -125,6 +125,8 @@ category buttons and the shared keyword, platform, category, and optional
 “Recommended only” filters combine with AND. Counts and empty states update as filters
 change. Without JavaScript, category links and all server-rendered cards remain usable.
 
+With a category registry, every card names its category and current recommendation state: “Category: {label}” with “Recommended,” “Recommendation needs review,” or “Not currently recommended.” Cards without a listing show “Category: Not yet classified” and “Not currently recommended.” A legacy catalog without a registry keeps its existing card markup.
+
 Tool creators do not nominate or select entries; catalog maintainers make those
 decisions. Creators may submit a source pointer and optional ordinary category with
 `recommended: false` and no reviewed source.

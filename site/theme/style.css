@@ -828,6 +828,13 @@ p+p {
   color: var(--muted);
 }
 
+.recommendation.ordinary {
+  border-color: #777c71;
+  color: var(--ink);
+  background: #f4f3ed;
+  overflow-wrap: anywhere;
+}
+
 .catalog-card .recommendation-note {
   font-size: 11px;
   overflow-wrap: anywhere;

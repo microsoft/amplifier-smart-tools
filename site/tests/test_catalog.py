@@ -68,12 +68,22 @@ class Cards(HTMLParser):
     def __init__(self, source):
         super().__init__()
         self.cards = []
+        self.card = None
         self.feed(source)
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         if tag == 'article' and 'data-tool' in attrs:
-            self.cards.append(attrs)
+            self.card = dict(attrs, text='')
+            self.cards.append(self.card)
+
+    def handle_endtag(self, tag):
+        if tag == 'article':
+            self.card = None
+
+    def handle_data(self, data):
+        if self.card is not None:
+            self.card['text'] += data
 
 
 class CatalogLayout(HTMLParser):
@@ -133,6 +143,14 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     assert [card['data-category'] for card in cards] == ['testing', 'testing', '']
     assert [card['data-recommended'] for card in cards] == ['true', 'false', 'false']
     assert all('hidden' not in card for card in cards)
+    by_slug = {card['data-tool']: ' '.join(card['text'].split()) for card in cards}
+    assert 'Category: Test environments' in by_slug['zulu']
+    assert 'Recommended' in by_slug['zulu']
+    assert 'Not currently recommended' not in by_slug['zulu']
+    assert 'Category: Test environments' in by_slug['alternative']
+    assert 'Not currently recommended' in by_slug['alternative']
+    assert 'Category: Not yet classified' in by_slug['alpha']
+    assert 'Not currently recommended' in by_slug['alpha']
 
     placements = {attrs['data-tool']: region for attrs, region in layout.cards}
     assert placements == {
@@ -196,6 +214,9 @@ def test_zero_recommendations_keep_classified_and_unclassified_tools_visible(tmp
     assert [card['data-recommended'] for card in cards] == ['false', 'false', 'false']
     assert all('hidden' not in card for card in cards)
     assert result.count('class="recommendation recommended"') == 0
+    assert all('Category: Test environments' in card['text'] for card in cards[:2])
+    assert 'Category: Not yet classified' in cards[2]['text']
+    assert all('Not currently recommended' in card['text'] for card in cards)
     assert {attrs['data-tool']: region for attrs, region in layout.cards} == {
         'classified-alpha': 'category-group-testing',
         'classified-beta': 'category-group-testing',
@@ -255,6 +276,11 @@ def test_every_identity_mismatch_loses_preference(tmp_path, target, field, value
     assert 'class="recommendation recommended"' not in result
     assert [c['data-tool'] for c in Cards(result).cards] == ['zulu', 'alpha']
     assert Cards(result).cards[0]['data-category'] == 'testing'
+    assert 'Category: Test environments' in Cards(result).cards[0]['text']
+    assert 'Recommendation needs review' in Cards(result).cards[0]['text']
+    assert 'Not currently recommended' not in Cards(result).cards[0]['text']
+    assert 'Category: Not yet classified' in Cards(result).cards[1]['text']
+    assert 'Not currently recommended' in Cards(result).cards[1]['text']
 
 
 @pytest.mark.parametrize('missing', ['SMART_TOOL.md', 'provenance.json', 'both'])
@@ -395,7 +421,9 @@ def test_listing_errors_never_echo_credential_values(tmp_path, field):
 def test_empty_registry_is_valid_and_shows_unclassified(tmp_path):
     registry(tmp_path, [])
     entry(tmp_path, 'tool')
-    assert 'Not yet classified' in render(tmp_path)
+    result = render(tmp_path)
+    assert 'Category: Not yet classified' in result
+    assert 'Not currently recommended' in result
 
 
 def test_listings_without_registry_fail(tmp_path):
@@ -564,11 +592,12 @@ def test_unicode_category_labels_and_scopes_are_preserved_and_escaped(tmp_path, 
     escaped_label = build.html.escape(label, quote=True)
     escaped_scope = build.html.escape(scope, quote=True)
     assert f'<option value="testing">{escaped_label}</option>' in result
-    assert f'<span>{escaped_label}</span>' in result
+    assert f'<span>Category: {escaped_label}</span>' in result
     assert f'<span class="category-tile-scope">{escaped_scope}</span>' in result
     assert '<details class="category-scopes">' not in result
     assert '<img onerror=' not in result and '<script>bad</script>' not in result
     assert Cards(result).cards[0]['data-category'] == 'testing'
+    assert f'Category: {label}' in Cards(result).cards[0]['text']
 
 
 def test_upstream_cannot_recommend_itself(tmp_path):

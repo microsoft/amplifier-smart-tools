@@ -160,7 +160,7 @@ def catalog(config, args, root):
         state = recommendation_state(pointer, prov, listing, bool(meta))
         category = categories[listing['category']] if listing else None
         classification = ''
-        if category:
+        if categories is not None:
             badge = ''
             if state == 'recommended':
                 badge = (
@@ -174,9 +174,11 @@ def catalog(config, args, root):
                     '</details>')
             elif state == 'needs-review':
                 badge = '<span class="recommendation needs-review">Recommendation needs review</span>'
+            else:
+                badge = '<span class="recommendation ordinary">Not currently recommended</span>'
             classification = (
                 f'<div class="catalog-category"><span>'
-                f'{html.escape(category["label"], quote=True)}</span>{badge}</div>')
+                f'Category: {html.escape(category["label"], quote=True) if category else "Not yet classified"}</span>{badge}</div>')
             if state == 'needs-review':
                 classification += (
                     '<p class="recommendation-note">The snapshot or recorded source '
