@@ -39,6 +39,24 @@ this workflow; verify Pages availability for the repository's current plan.
 A normal push only builds the artifact. It does not publish an unreviewed page.
 Use the downloaded artifact or the local server to review before publication.
 
+The `github-pages` artifact is retained for seven days; it is a downloadable
+preview, not a live preview URL. Pull requests build GitHub's merge ref
+(`refs/pull/<number>/merge`), not just the branch head, and never deploy.
+To preview the exact source on a review branch once it is available in the
+repository hosting the workflow, set the branch and the actual owner of the
+family preview sites, then dispatch the build with publication disabled:
+
+```sh
+REVIEW_BRANCH='<review-branch>'
+PREVIEW_OWNER='<owner-of-family-preview-sites>'
+gh workflow run website.yml --ref "$REVIEW_BRANCH" -f publish=false -f family_owner="$PREVIEW_OWNER"
+```
+
+Verify the run's branch and commit, download its artifact, extract the contained
+site archive, and serve it locally. A branch build does not update the live
+GitHub Pages URL. Publication and repository/environment settings require
+separate authorization.
+
 ## Shared identity
 
 Use the full family name, Amplifier Smart Tools, as one masthead and footer
@@ -60,6 +78,85 @@ To update a vendored theme, run the canonical `site/sync_theme.py` with an expli
 target checkout, review the diff, and build again. It updates only `site/theme/`.
 Page content stays in the owning repository. The family link registry holds only
 navigation identity; the catalog's tool inventory remains `tools/*/source.json`.
+
+## Catalog categories and recommendations
+
+The canonical renderer supports optional catalog-owned `categories.json` and
+`tools/<slug>/listing.json`, without changing the Smart Tool manifest or source-pointer
+format. The registry is `{"categories":[{"id":"stable-id","label":"Display name","scope":"Kind of work covered."}]}`.
+A listing has a known primary `category` and an explicit boolean `recommended`.
+Ordinary classified entries use `false` and omit `reviewed_source`; a true designation
+records the reviewed `repository`, distribution `path`, and full source `commit`.
+Entries without a listing remain available and unclassified. Without a registry, the
+renderer keeps legacy output and does not add category or recommendation controls.
+
+`site/theme/catalog_metadata.py` provides the shared validators for the renderer and
+catalog CI: `load_catalog_metadata(root)` returns optional categories and validated
+listings, `validate_pointer` applies ref/path defaults, `read_snapshot` inspects front
+matter and provenance without executing upstream code, and `recommendation_state`
+compares recorded identities. Import this helper from the synced theme in catalog CI
+rather than copying its rules. Invalid metadata, unsafe paths, symlinks, credential
+URLs, and multiple designations in one category fail the build. A designation needing
+review still occupies its category.
+
+An effective Recommended designation requires pointer repository/ref/path to match
+snapshot provenance and reviewed repository/path/commit to match that provenance.
+Missing snapshots or mismatched identities show “Recommendation needs review” and
+remove recommendation preference without removing the entry or its category. Recommended
+means a catalog-maintainer-curated starting point at the recorded source revision. The
+review standard calls for specification conformance, representative-task evidence, and
+documented limitations. The review is scoped, not certification, a quality guarantee, or
+proof of readiness in a particular environment. A snapshot is point-in-time; refreshing
+it does not renew the designation. Each Recommended card keeps a keyboard-accessible
+revision disclosure.
+
+The catalog page has a distinct, always-visible Recommended region with its current
+count. When no tools are designated, it says “No tools are currently designated
+Recommended. Browse all tools below.” A missing designation means no current
+recommendation is recorded; it is not a negative quality judgment. The page-level “What does
+Recommended mean?” guide remains visible by default in the Recommended region
+and describes the review and its limits in two short paragraphs.
+
+Below it, “Browse by category” shows every registry category’s label, current count, and
+visible one-line scope. Ordinary tools appear once beneath visible category headings and
+counts; unclassified entries appear under “Not yet classified.” Recommended cards stay
+in their own region rather than being duplicated in those groups. With JavaScript,
+category buttons and the shared keyword, platform, category, and optional
+“Recommended only” filters combine with AND. Counts and empty states update as filters
+change. Without JavaScript, category links and all server-rendered cards remain usable.
+
+With a category registry, every card names its category and current recommendation state: “Category: {label}” with “Recommended,” “Recommendation needs review,” or “Not currently recommended.” Cards without a listing show “Category: Not yet classified” and “Not currently recommended.” A legacy catalog without a registry keeps its existing card markup.
+
+Tool creators do not nominate or select entries; catalog maintainers make those
+decisions. Creators may submit a source pointer and optional ordinary category with
+`recommended: false` and no reviewed source.
+
+### Maintainer recommendation review
+
+The normative maintainer roles, review standard, merge gate, and designation,
+renewal, replacement, and withdrawal procedures live in the catalog's
+[maintainer curation guide](https://github.com/microsoft/amplifier-smart-tools-catalog/blob/main/docs/maintainers.md).
+
+The page supports fit-first selection, neutral unclassified state, and optional
+filter behavior. Recommended tools appear once in their own region. Other tools are
+grouped under visible category headings and counts, with unclassified tools under
+“Not yet classified.” Keyword, declared platform, primary category, and the optional
+“Recommended only” checkbox combine with AND. Category tiles keep their labels,
+counts, and one-line scopes visible. All cards and category links remain usable
+without JavaScript.
+
+`site/sync_theme.py` copies the helper with the renderer, CSS, JavaScript, family registry, license, and shared motion assets. Review the synchronized diff and run a build in the target catalog before adoption; do not update only a vendored theme copy.
+
+## Site tests
+
+Run deterministic Python renderer/metadata tests and the JavaScript filter harness from the repository root:
+
+```sh
+uv run --with pytest --with-requirements site/requirements.txt pytest site/tests/ -q
+node --test site/tests/test_filters.cjs
+```
+
+The Python suite also checks legacy rendering, emitted assets, and theme sync. The Node harness executes the production script against a minimal DOM; it is not a browser layout or supported-host trial. Run browser and read-only host discovery scenarios separately before making those claims. CI runs these checks alongside the existing conformance kit tests.
 
 ## Motion assets
 
