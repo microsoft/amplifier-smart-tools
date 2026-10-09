@@ -76,6 +76,32 @@ class Cards(HTMLParser):
             self.cards.append(attrs)
 
 
+class CatalogLayout(HTMLParser):
+    def __init__(self, source):
+        super().__init__()
+        self.section_stack = []
+        self.cards = []
+        self.sections = {}
+        self.category_tiles = []
+        self.feed(source)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'section':
+            self.section_stack.append(attrs.get('id'))
+            if attrs.get('id'):
+                self.sections[attrs['id']] = attrs
+        if tag == 'article' and 'data-tool' in attrs:
+            parent = next((identity for identity in reversed(self.section_stack) if identity), None)
+            self.cards.append((attrs, parent))
+        if tag == 'button' and 'data-category-filter' in attrs:
+            self.category_tiles.append(attrs)
+
+    def handle_endtag(self, tag):
+        if tag == 'section' and self.section_stack:
+            self.section_stack.pop()
+
+
 def test_legacy_has_no_category_ui_and_preserves_slug_order(tmp_path):
     entry(tmp_path, 'zulu')
     entry(tmp_path, 'alpha', snapshot=False)
@@ -101,48 +127,58 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     entry(tmp_path, 'alternative', {'category': 'testing', 'recommended': False})
     entry(tmp_path, 'zulu', LISTING)
     result = render(tmp_path)
+    layout = CatalogLayout(result)
     cards = Cards(result).cards
-    assert [c['data-tool'] for c in cards] == ['zulu', 'alpha', 'alternative']
-    assert [c['data-category'] for c in cards] == ['testing', '', 'testing']
-    assert [c['data-recommended'] for c in cards] == ['true', 'false', 'false']
-    assert all('hidden' not in c for c in cards)
+    assert [card['data-tool'] for card in cards] == ['zulu', 'alternative', 'alpha']
+    assert [card['data-category'] for card in cards] == ['testing', 'testing', '']
+    assert [card['data-recommended'] for card in cards] == ['true', 'false', 'false']
+    assert all('hidden' not in card for card in cards)
+
+    placements = {attrs['data-tool']: region for attrs, region in layout.cards}
+    assert placements == {
+        'zulu': 'recommended-region',
+        'alpha': 'category-group-unclassified',
+        'alternative': 'category-group-testing',
+    }
+    assert len(placements) == len(cards)
+    assert 'recommended-region' in layout.sections
+    assert 'other-tools' in layout.sections
+    assert 'category-group-testing' in layout.sections
+    assert 'category-group-unclassified' in layout.sections
+    assert result.index('id="recommended-region"') < result.index('id="category-navigation-heading"')
+    assert result.index('id="category-navigation-heading"') < result.index('id="other-tools"')
+    assert '<span class="catalog-count" id="recommended-count">1 tool</span>' in result
+    assert '<span class="catalog-count" id="other-count">2 tools</span>' in result
+    assert 'id="category-group-count-testing">1 tool</span>' in result
+    assert 'id="category-group-count-unclassified">1 tool</span>' in result
+    assert 'data-category-filter="testing"' in result
+    assert 'id="category-filter-count-testing">2 tools</span>' in result
+    assert 'Create isolated test environments.' in result
+    tile_start = result.index('data-category-filter="testing"')
+    tile_end = result.index('</button>', tile_start)
+    tile = result[tile_start:tile_end]
+    assert 'Create isolated test environments.' in tile
+    assert '<details' not in tile
+    assert 'aria-pressed="false"' in tile
+    assert ('<div id="recommended-filter" class="recommended-field">'
+            '<label for="recommended-only"><input id="recommended-only" '
+            'type="checkbox"> Recommended only</label></div>') in result
     assert result.count('class="recommendation recommended"') == 1
-    assert result.count('<summary class="recommendation recommended">Recommended</summary>') == 1
-    assert 'id="recommended-filter" hidden' in result
-    assert 'id="recommended-only" type="checkbox"' in result
+    assert result.count('<details class="recommendation-disclosure">') == 1
     guide_start = result.index('<section class="recommendation-guide"')
     guide_end = result.index('</section>', guide_start)
     guide = result[guide_start:guide_end]
-    assert 'hidden' not in guide.split('>', 1)[0]
-    assert '<details' not in guide
-    assert '<details class="recommendation-explainer">' not in result
-    assert result[:guide_start].count('<details') == result[:guide_start].count('</details>')
-    assert guide.count('<li>') == 3
-    assert 'What does Recommended mean?' in guide
-    assert 'Maintainers curate a Recommended tool as a starting point' in guide
-    assert 'recorded source revision' in guide
+    assert guide.count('<p>') == 2
     assert 'specification conformance' in guide
     assert 'representative-task evidence' in guide
-    assert 'documented limitations' in guide
-    assert 'not certification or proof of host readiness' in guide
-    assert 'snapshot refresh does not renew the designation' in guide
-    assert 'documented capabilities, platform support, and prerequisites' in guide
-    assert 'your task first' in guide
-    assert 'preference among suitable options, not an override' in guide
-    assert 'consider suitable alternatives' in guide
-    assert 'Unclassified or undesignated tools are not a negative quality judgment' in guide
-    assert 'starts unchecked' in guide
-    assert 'all tools remain visible by default' in guide
-    assert result.count('<input id="recommended-only" type="checkbox">') == 1
-    assert 'All categories' in result and 'Not yet classified' in result
-    assert 'Create isolated test environments.' in result
+    assert 'recorded source revision' in guide
+    assert 'scoped' in guide
+    assert 'not certification' in guide
+    assert 'proof of readiness' in guide
+    assert 'no current recommendation is recorded' in guide
+    assert 'What does Recommended mean?' in guide
     assert (f'Maintainer-curated starting point for this category at recorded source '
             f'revision <code>{COMMIT}</code>.') in result
-    assert 'Not certification or proof of host readiness.' in result
-    assert result.count('<details class="recommendation-disclosure">') == 1
-    assert ('See <a href="#recommendation-guide-title">What does Recommended '
-            'mean?</a> for review scope and limits.') in result
-    assert 'See the expanded “What does Recommended mean?” guide' not in result
     assert COMMIT in result and PROVENANCE['last_success'] in result
 
 
@@ -152,6 +188,7 @@ def test_zero_recommendations_keep_classified_and_unclassified_tools_visible(tmp
     entry(tmp_path, 'classified-beta', {'category': 'testing', 'recommended': False})
     entry(tmp_path, 'unclassified')
     result = render(tmp_path)
+    layout = CatalogLayout(result)
     cards = Cards(result).cards
     assert [card['data-tool'] for card in cards] == [
         'classified-alpha', 'classified-beta', 'unclassified']
@@ -159,10 +196,22 @@ def test_zero_recommendations_keep_classified_and_unclassified_tools_visible(tmp
     assert [card['data-recommended'] for card in cards] == ['false', 'false', 'false']
     assert all('hidden' not in card for card in cards)
     assert result.count('class="recommendation recommended"') == 0
+    assert {attrs['data-tool']: region for attrs, region in layout.cards} == {
+        'classified-alpha': 'category-group-testing',
+        'classified-beta': 'category-group-testing',
+        'unclassified': 'category-group-unclassified',
+    }
+    assert 'id="recommended-heading">Recommended</h2>' in result
+    assert 'id="recommended-count">0 tools</span>' in result
+    assert ('id="no-recommended">No tools are currently designated Recommended. '
+            'Browse all tools below.</p>') in result
+    assert 'id="other-tools-heading">All tools</h2>' in result
+    assert 'id="other-count">3 tools</span>' in result
+    assert 'id="category-group-count-testing">2 tools</span>' in result
+    assert 'id="category-group-count-unclassified">1 tool</span>' in result
     assert result.count('<input id="recommended-only" type="checkbox">') == 1
     assert '<button id="show-all-tools" class="button" type="button" hidden>Show all matching tools</button>' in result
-    assert '<button id="clear-filters" class="button" type="button">Clear all filters</button>' in result
-    assert '3 tools' in result
+    assert '<button id="clear-filters" class="button clear-filters" type="button">Clear all filters</button>' in result
 
 
 def test_two_categories_can_each_have_a_recommendation(tmp_path):
@@ -204,8 +253,8 @@ def test_every_identity_mismatch_loses_preference(tmp_path, target, field, value
     result = render(tmp_path)
     assert 'Recommendation needs review' in result
     assert 'class="recommendation recommended"' not in result
-    assert [c['data-tool'] for c in Cards(result).cards] == ['alpha', 'zulu']
-    assert Cards(result).cards[1]['data-category'] == 'testing'
+    assert [c['data-tool'] for c in Cards(result).cards] == ['zulu', 'alpha']
+    assert Cards(result).cards[0]['data-category'] == 'testing'
 
 
 @pytest.mark.parametrize('missing', ['SMART_TOOL.md', 'provenance.json', 'both'])
@@ -245,8 +294,12 @@ def test_full_commit_pin_must_match_snapshot_commit(tmp_path, length, matches):
     result = render(tmp_path)
     assert ('class="recommendation recommended"' in result) is matches
     assert ('Recommendation needs review' in result) is not matches
-    assert [c['data-tool'] for c in Cards(result).cards] == (
-        ['zulu', 'alpha'] if matches else ['alpha', 'zulu'])
+    assert [c['data-tool'] for c in Cards(result).cards] == ['zulu', 'alpha']
+    placements = {attrs['data-tool']: region for attrs, region in CatalogLayout(result).cards}
+    assert placements == {
+        'zulu': 'recommended-region' if matches else 'category-group-testing',
+        'alpha': 'category-group-unclassified',
+    }
     assert next(c for c in Cards(result).cards if c['data-tool'] == 'zulu')['data-category'] == 'testing'
 
 
@@ -511,8 +564,9 @@ def test_unicode_category_labels_and_scopes_are_preserved_and_escaped(tmp_path, 
     escaped_label = build.html.escape(label, quote=True)
     escaped_scope = build.html.escape(scope, quote=True)
     assert f'<option value="testing">{escaped_label}</option>' in result
-    assert f'<div class="catalog-category"><span>{escaped_label}</span>' in result
-    assert f'<dt>{escaped_label}</dt><dd>{escaped_scope}</dd>' in result
+    assert f'<span>{escaped_label}</span>' in result
+    assert f'<span class="category-tile-scope">{escaped_scope}</span>' in result
+    assert '<details class="category-scopes">' not in result
     assert '<img onerror=' not in result and '<script>bad</script>' not in result
     assert Cards(result).cards[0]['data-category'] == 'testing'
 

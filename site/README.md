@@ -99,17 +99,31 @@ rather than copying its rules. Invalid metadata, unsafe paths, symlinks, credent
 URLs, and multiple designations in one category fail the build. A designation needing
 review still occupies its category.
 
-An effective Recommended disclosure requires pointer repository/ref/path to match
+An effective Recommended designation requires pointer repository/ref/path to match
 snapshot provenance and reviewed repository/path/commit to match that provenance.
 Missing snapshots or mismatched identities show “Recommendation needs review” and
-remove recommendation preference without removing the entry or category. Recommended
+remove recommendation preference without removing the entry or its category. Recommended
 means a catalog-maintainer-curated starting point at the recorded source revision. The
 review standard calls for specification conformance, representative-task evidence, and
-documented limitations. It is not certification or proof of host readiness. A snapshot
-is point-in-time; refreshing it does not renew the designation. The keyboard-accessible
-badge disclosure shows its recorded source revision. The page-level “What does
-Recommended mean?” guide remains visible by default and summarizes the claim, fit-first
-selection, neutral unclassified state, and optional filter behavior.
+documented limitations. The review is scoped, not certification, a quality guarantee, or
+proof of readiness in a particular environment. A snapshot is point-in-time; refreshing
+it does not renew the designation. Each Recommended card keeps a keyboard-accessible
+revision disclosure.
+
+The catalog page has a distinct, always-visible Recommended region with its current
+count. When no tools are designated, it says “No tools are currently designated
+Recommended. Browse all tools below.” A missing designation means no current
+recommendation is recorded; it is not a negative quality judgment. The page-level “What does
+Recommended mean?” guide remains visible by default in the Recommended region
+and describes the review and its limits in two short paragraphs.
+
+Below it, “Browse by category” shows every registry category’s label, current count, and
+visible one-line scope. Ordinary tools appear once beneath visible category headings and
+counts; unclassified entries appear under “Not yet classified.” Recommended cards stay
+in their own region rather than being duplicated in those groups. With JavaScript,
+category buttons and the shared keyword, platform, category, and optional
+“Recommended only” filters combine with AND. Counts and empty states update as filters
+change. Without JavaScript, category links and all server-rendered cards remain usable.
 
 Tool creators do not nominate or select entries; catalog maintainers make those
 decisions. Creators may submit a source pointer and optional ordinary category with
@@ -121,12 +135,13 @@ The normative maintainer roles, review standard, merge gate, and designation,
 renewal, replacement, and withdrawal procedures live in the catalog's
 [maintainer curation guide](https://github.com/microsoft/amplifier-smart-tools-catalog/blob/main/docs/maintainers.md).
 
-The catalog sorts effective recommendations first, then all other entries by slug.
-Keyword, declared platform, primary category, and the optional “Recommended only”
-checkbox combine with AND. The checkbox is off by default, so alternatives stay visible.
-“Not yet classified” is a neutral discovery category, not a negative judgment. The
-scope disclosure lists category labels and scopes. All cards and links remain in
-server-rendered HTML without JavaScript.
+The page supports fit-first selection, neutral unclassified state, and optional
+filter behavior. Recommended tools appear once in their own region. Other tools are
+grouped under visible category headings and counts, with unclassified tools under
+“Not yet classified.” Keyword, declared platform, primary category, and the optional
+“Recommended only” checkbox combine with AND. Category tiles keep their labels,
+counts, and one-line scopes visible. All cards and category links remain usable
+without JavaScript.
 
 `site/sync_theme.py` copies the helper with the renderer, CSS, JavaScript, family registry, license, and shared motion assets. Review the synchronized diff and run a build in the target catalog before adoption; do not update only a vendored theme copy.
 
