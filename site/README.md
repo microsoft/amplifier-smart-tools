@@ -79,17 +79,54 @@ target checkout, review the diff, and build again. It updates only `site/theme/`
 Page content stays in the owning repository. The family link registry holds only
 navigation identity; the catalog's tool inventory remains `tools/*/source.json`.
 
-## Catalog domains and recommendations
+## Catalog categories and recommendations
 
-The canonical renderer supports optional catalog-owned `domains.json` and `tools/<slug>/listing.json`, without changing the Smart Tool manifest or source-pointer format. `domains.json` is `{"domains":[{"id":"stable-id","label":"Display name","scope":"Kind of work covered."}]}`. Each optional listing has a known `domain` and an explicit boolean `recommended`. Ordinary classified entries use false and must not carry a reviewed source. A true designation requires `reviewed_source: {"repository":"https://github.com/example/tool.git","path":".","commit":"<full source commit>"}`. Missing listings remain available and unclassified. With neither registry nor listings, the catalog retains its legacy output and has no domain control. These catalog-only additions do not change other family pages.
+The canonical renderer supports optional catalog-owned `categories.json` and
+`tools/<slug>/listing.json`, without changing the Smart Tool manifest or source-pointer
+format. The registry is `{"categories":[{"id":"stable-id","label":"Display name","scope":"Kind of work covered."}]}`.
+A listing has a known primary `category` and an explicit boolean `recommended`.
+Ordinary classified entries use `false` and omit `reviewed_source`; a true designation
+records the reviewed `repository`, distribution `path`, and full source `commit`.
+Entries without a listing remain available and unclassified. Without a registry, the
+renderer keeps legacy output and does not add category or recommendation controls.
 
-`site/theme/catalog_metadata.py` provides the shared validators for the renderer and catalog CI: `load_catalog_metadata(root)` returns optional domains and validated listings, `validate_pointer` applies ref/path defaults, `read_snapshot` inspects front matter and provenance without executing upstream code, and `recommendation_state` compares recorded identities. Import this helper from the synced theme in catalog CI rather than copying its rules. Invalid editorial metadata, unknown/duplicate keys, unsafe paths, symlink files or directories, credential URLs, and multiple true designations in one domain fail the build. A designation needing review still occupies its domain. CI should validate metadata before publishing.
+`site/theme/catalog_metadata.py` provides the shared validators for the renderer and
+catalog CI: `load_catalog_metadata(root)` returns optional categories and validated
+listings, `validate_pointer` applies ref/path defaults, `read_snapshot` inspects front
+matter and provenance without executing upstream code, and `recommendation_state`
+compares recorded identities. Import this helper from the synced theme in catalog CI
+rather than copying its rules. Invalid metadata, unsafe paths, symlinks, credential
+URLs, and multiple designations in one category fail the build. A designation needing
+review still occupies its category.
 
-An effective Recommended badge requires pointer repository/ref/path to match snapshot provenance and reviewed repository/path/commit to match that provenance. Missing snapshots/provenance or mismatched identities show "Recommendation needs review" and remove preference, without removing the entry or its domain. The badge describes recorded catalog editorial metadata for a domain at a source revision, not certification or local usability. Metadata alone does not prove Brian or Sam made the selection; unmerged initial choices remain for their decision before merge, with no confirmation claimed. Cards show recorded revisions and refresh times, not current branch health. Refresh must leave listings and the registry untouched.
+An effective Recommended disclosure requires pointer repository/ref/path to match
+snapshot provenance and reviewed repository/path/commit to match that provenance.
+Missing snapshots or mismatched identities show “Recommendation needs review” and
+remove recommendation preference without removing the entry or category. Recommended
+means a catalog-maintainer-curated starting point at the recorded source revision. The
+review standard calls for specification conformance, representative-task evidence, and
+documented limitations. It is not certification or proof of host readiness. A snapshot
+is point-in-time; refreshing it does not renew the designation. The keyboard-accessible
+badge disclosure shows its recorded source revision. The page-level “What does
+Recommended mean?” guide remains visible by default and summarizes the claim, fit-first
+selection, neutral unclassified state, and optional filter behavior.
 
-Authors submit source pointers and optional ordinary classification with `recommended: false` and no reviewed source, not recommendation nominations. Do not solicit recommendation requests or proposals from authors. Only Brian or Sam chooses the tool, domain, and source revision and initiates designations, renewals, replacements, and withdrawals; either one may decide. They are selectors and initiators, not approvers of everyone's nominations. A contributor or agent may edit recommendation metadata only to implement an explicit decision from Brian or Sam, not to make the selection. An arbitrary request from a tool author, including "make mine recommended", cannot authorize a recommendation; do not infer their decision from a user request or PR authorship. Record the decision, rationale, and actual evidence through the catalog's contribution process. Domain additions, label changes, and scope changes separately require their review and approval. The optional true format and structural checks do not establish selection authority, and this documentation does not establish GitHub enforcement.
+Tool creators do not nominate or select entries; catalog maintainers make those
+decisions. Creators may submit a source pointer and optional ordinary category with
+`recommended: false` and no reviewed source.
 
-The catalog sorts effective recommendations first, then all other entries by slug. Keyword, declared platform, and primary domain filters combine with AND. All domains includes ordinary and unclassified entries; Not yet classified is a neutral discovery category. The scope disclosure lists the registry's labels and scopes. All cards and links remain in server-rendered HTML without JavaScript.
+### Maintainer recommendation review
+
+The normative maintainer roles, review standard, merge gate, and designation,
+renewal, replacement, and withdrawal procedures live in the catalog's
+[maintainer curation guide](https://github.com/microsoft/amplifier-smart-tools-catalog/blob/main/docs/maintainers.md).
+
+The catalog sorts effective recommendations first, then all other entries by slug.
+Keyword, declared platform, primary category, and the optional “Recommended only”
+checkbox combine with AND. The checkbox is off by default, so alternatives stay visible.
+“Not yet classified” is a neutral discovery category, not a negative judgment. The
+scope disclosure lists category labels and scopes. All cards and links remain in
+server-rendered HTML without JavaScript.
 
 `site/sync_theme.py` copies the helper with the renderer, CSS, JavaScript, family registry, license, and shared motion assets. Review the synchronized diff and run a build in the target catalog before adoption; do not update only a vendored theme copy.
 

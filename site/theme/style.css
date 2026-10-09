@@ -808,7 +808,7 @@ p+p {
   color: var(--muted);
 }
 
-.catalog-domain {
+.catalog-category {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -833,51 +833,111 @@ p+p {
   overflow-wrap: anywhere;
 }
 
-.domain-scopes {
+.catalog-card details.recommendation-disclosure {
+  display: inline-block;
+  margin: 0;
+}
+
+.recommendation-disclosure summary {
+  cursor: pointer;
+}
+
+.catalog-card .recommendation-disclosure p {
+  font-size: 10px;
+  margin-top: 5px;
+}
+
+.recommendation-guide {
+  max-width: 900px;
+  margin: 0 0 24px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold);
+  background: var(--wash);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.recommendation-guide h2 {
+  margin-bottom: 8px;
+  font: 600 15px/1.4 var(--sans);
+}
+
+.recommendation-guide ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.recommendation-guide li {
+  padding-left: 2px;
+}
+
+.category-scopes {
   margin-bottom: 25px;
   font-size: 12px;
   color: var(--muted);
 }
 
-.domain-scopes summary {
+.category-scopes summary {
   cursor: pointer;
 }
 
-.domain-scopes dt {
+.category-scopes dt {
   font-weight: bold;
   margin-top: 12px;
 }
 
-.domain-scopes dd {
+.category-scopes dd {
   margin-left: 0;
 }
 
-.filters:has(.domain-field) {
+.filters:has(.category-field) {
   flex-wrap: wrap;
 }
 
-.filters:has(.domain-field) > div {
+.filters:has(.category-field) > div {
   min-width: 0;
   flex: 1 1 220px;
 }
 
-.filters:has(.domain-field) .search-field {
+.filters:has(.category-field) .search-field {
   flex: 2 1 240px;
 }
 
-.domain-field select {
+.category-field select {
   min-width: 0;
 }
 
+.recommended-field label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.recommended-field input[type=checkbox] {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  accent-color: var(--accent);
+}
+
 @media(max-width:900px) {
-  .filters:has(.domain-field) .search-field {
+  .filters:has(.category-field) .search-field {
     flex-basis: 100%;
   }
 }
 
 @media(max-width:620px) {
-  .filters:has(.domain-field) > div,
-  .filters:has(.domain-field) .search-field {
+  .filters:has(.category-field) > div,
+  .filters:has(.category-field) .search-field {
     flex: none;
   }
 }

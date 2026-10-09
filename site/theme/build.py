@@ -144,7 +144,7 @@ def tool_page(config, args):
 
 
 def catalog(config, args, root):
-    domains, listings = load_catalog_metadata(root)
+    categories, listings = load_catalog_metadata(root)
     entries = []
     platforms = set()
     for source in catalog_sources(root):
@@ -157,18 +157,29 @@ def catalog(config, args, root):
             description = meta['description'].strip()
         listing = listings.get(slug)
         state = recommendation_state(pointer, prov, listing, bool(meta))
-        domain = domains[listing['domain']] if listing else None
+        category = categories[listing['category']] if listing else None
         classification = ''
-        if domain:
+        if category:
             badge = ''
-            if state != 'ordinary':
-                label = 'Recommended' if state == 'recommended' else 'Recommendation needs review'
-                badge = f'<span class="recommendation {state}">{label}</span>'
-            classification = f'<div class="catalog-domain"><span>{html.escape(domain["label"], quote=True)}</span>{badge}</div>'
-            if state != 'ordinary':
-                classification += f'<p class="recommendation-note">Catalog recommendation for this domain at recorded source revision <code>{esc(listing["reviewed_source"]["commit"])}</code>. Not a certification or a check of local usability.</p>'
-                if state == 'needs-review':
-                    classification += '<p class="recommendation-note">The pointer, snapshot, and reviewed source do not all agree, or the snapshot is missing. No recommendation preference applies.</p>'
+            if state == 'recommended':
+                badge = (
+                    '<details class="recommendation-disclosure">'
+                    '<summary class="recommendation recommended">Recommended</summary>'
+                    f'<p>Maintainer-curated starting point for this category at recorded '
+                    f'source revision <code>{esc(listing["reviewed_source"]["commit"])}</code>. '
+                    'Not certification or proof of host readiness. See '
+                    '<a href="#recommendation-guide-title">What does Recommended '
+                    'mean?</a> for review scope and limits.</p>'
+                    '</details>')
+            elif state == 'needs-review':
+                badge = '<span class="recommendation needs-review">Recommendation needs review</span>'
+            classification = (
+                f'<div class="catalog-category"><span>'
+                f'{html.escape(category["label"], quote=True)}</span>{badge}</div>')
+            if state == 'needs-review':
+                classification += (
+                    '<p class="recommendation-note">The snapshot or recorded source '
+                    'does not match the listing. No recommendation preference applies.</p>')
         tool_platforms = meta.get('platforms', [])
         if not isinstance(tool_platforms, list) or not all(isinstance(p,str) for p in tool_platforms):
             raise ValueError(f'{slug}: invalid platforms')
@@ -193,21 +204,64 @@ def catalog(config, args, root):
         launch = link(page_url(showcase,args),'Explore tool') if showcase else ''
         search = esc(' '.join([str(name),description,*use_cases,*tool_platforms]).lower())
         tags = ''.join('<span class="tag">'+esc(p)+'</span>' for p in tool_platforms)
-        domain_attr = f' data-domain="{esc(listing["domain"] if listing else "")}"' if domains is not None else ''
-        card = f'<article class="catalog-card" data-tool="{esc(slug)}" data-platforms="{esc(" ".join(tool_platforms))}" data-search="{search}"{domain_attr}><h2>{esc(display_name)}</h2>{classification}<p>{esc(excerpt)}</p><div class="tool-meta">{tags}</div>{detail}<div class="card-links">{launch}{link(repo,"Repository")}{manifest_link}</div></article>'
+        category_attr = (
+            f' data-category="{esc(listing["category"] if listing else "")}"'
+            f' data-recommended="{str(state == "recommended").lower()}"'
+            if categories is not None else '')
+        card = f'<article class="catalog-card" data-tool="{esc(slug)}" data-platforms="{esc(" ".join(tool_platforms))}" data-search="{search}"{category_attr}><h2>{esc(display_name)}</h2>{classification}<p>{esc(excerpt)}</p><div class="tool-meta">{tags}</div>{detail}<div class="card-links">{launch}{link(repo,"Repository")}{manifest_link}</div></article>'
         entries.append((state != 'recommended', slug, card))
     entries = [card for _, _, card in sorted(entries)]
     options = ''.join(f'<option value="{esc(p)}">{esc(p)}</option>' for p in sorted(platforms))
-    domain_control, domain_details = '', ''
+    category_control, category_details, recommendation_filter, recommendation_guide = '', '', '', ''
     empty_hint = 'Try a broader term or another platform.'
-    if domains is not None:
-        domain_options = ''.join(f'<option value="{esc(identity)}">{html.escape(domain["label"], quote=True)}</option>' for identity, domain in sorted(domains.items()))
-        domain_control = f'<div class="domain-field"><label for="domain">Primary domain</label><select id="domain" aria-describedby="domain-scopes"><option value="">All domains</option>{domain_options}<option value="__unclassified__">Not yet classified</option></select></div>'
-        scopes = ''.join(f'<dt>{html.escape(domain["label"], quote=True)}</dt><dd>{html.escape(domain["scope"], quote=True)}</dd>' for _, domain in sorted(domains.items()))
-        domain_details = f'<details class="domain-scopes" id="domain-scopes"><summary>Domain labels and scopes</summary><dl>{scopes}</dl></details>'
-        empty_hint = 'Try a broader term, another platform, or another domain.'
+    if categories is not None:
+        category_options = ''.join(
+            f'<option value="{esc(identity)}">{html.escape(category["label"], quote=True)}</option>'
+            for identity, category in sorted(categories.items()))
+        category_control = (
+            '<div class="category-field"><label for="category">Primary category</label>'
+            '<select id="category" aria-describedby="category-scopes">'
+            f'<option value="">All categories</option>{category_options}'
+            '<option value="__unclassified__">Not yet classified</option></select></div>')
+        scopes = ''.join(
+            f'<dt>{html.escape(category["label"], quote=True)}</dt>'
+            f'<dd>{html.escape(category["scope"], quote=True)}</dd>'
+            for _, category in sorted(categories.items()))
+        category_details = (
+            '<details class="category-scopes" id="category-scopes">'
+            f'<summary>Category labels and scopes</summary><dl>{scopes}</dl></details>')
+        recommendation_filter = (
+            '<div class="recommended-field" id="recommended-filter" hidden>'
+            '<label for="recommended-only">'
+            '<input id="recommended-only" type="checkbox"> Recommended only</label></div>')
+        recommendation_guide = (
+            '<section class="recommendation-guide" aria-labelledby="recommendation-guide-title">'
+            '<h2 id="recommendation-guide-title">What does Recommended mean?</h2>'
+            '<ul>'
+            '<li>Maintainers curate a Recommended tool as a starting point for its category '
+            'at the recorded source revision. The review standard covers specification '
+            'conformance, representative-task evidence, and documented limitations. It is '
+            'not certification or proof of host readiness; a snapshot refresh does not '
+            'renew the designation.</li>'
+            '<li>Compare documented capabilities, platform support, and prerequisites with '
+            'your task first. Recommended is a preference among suitable options, not an '
+            'override; consider suitable alternatives.</li>'
+            '<li>Unclassified or undesignated tools are not a negative quality judgment. '
+            '“Recommended only” is optional and starts unchecked, so all tools remain '
+            'visible by default.</li>'
+            '</ul></section>')
+        empty_hint = 'Try a broader term, another platform, or another category.'
+        empty_state = (
+            '<div id="empty-results" class="empty" hidden><h3 id="empty-title">No matching tools.</h3>'
+            f'<p id="empty-hint">{empty_hint}</p>'
+            '<button id="show-all-tools" class="button" type="button" hidden>Show all matching tools</button>'
+            '<button id="clear-filters" class="button" type="button">Clear all filters</button></div>')
+    else:
+        empty_state = (
+            f'<div id="empty-results" class="empty" hidden><h3>No matching tools.</h3><p>{empty_hint}</p>'
+            '<button id="clear-filters" class="button">Clear filters</button></div>')
     return f'''<section class="hero catalog-hero"><p class="eyebrow">Amplifier Smart Tools / Catalog</p><h1>Find a tool.<br>Make something happen.</h1><p class="lede">Domain expertise you can put to work. Explore the tools, inspect their requirements, and bring the right one to your agent.</p><div class="actions">{link('#discovery','Get the skill','button primary')}{link(repo_url('catalog')+'#contributing','Add a tool','text-link')}</div></section>
-    <section aria-label="Browse smart tools"><div class="filters"><div class="search-field"><label for="tool-search">Search tools and use cases</label><input id="tool-search" type="search" placeholder="Try video, research, or presentations" autocomplete="off"></div><div><label for="platform">Declared platform</label><select id="platform"><option value="">All platforms</option>{options}</select></div>{domain_control}</div>{domain_details}<p class="catalog-count" id="result-count" role="status">{len(entries)} tools</p><noscript><p>Search requires JavaScript. All tools are listed below.</p></noscript><div class="catalog-grid">{''.join(entries)}</div><div id="empty-results" class="empty" hidden><h3>No matching tools.</h3><p>{empty_hint}</p><button id="clear-filters" class="button">Clear filters</button></div><p class="catalog-note">Descriptions and declared platforms come from the tools' own manifest snapshots. A listing does not establish installation or usability in your environment. Expand an entry to inspect its source revision and refresh time.</p></section>
+    <section aria-label="Browse smart tools"><div class="filters"><div class="search-field"><label for="tool-search">Search tools and use cases</label><input id="tool-search" type="search" placeholder="Try video, research, or presentations" autocomplete="off"></div><div><label for="platform">Declared platform</label><select id="platform"><option value="">All platforms</option>{options}</select></div>{category_control}{recommendation_filter}</div>{category_details}{recommendation_guide}<p class="catalog-count" id="result-count" role="status">{len(entries)} tools</p><noscript><p>Search requires JavaScript. All tools are listed below.</p></noscript><div class="catalog-grid">{''.join(entries)}</div>{empty_state}<p class="catalog-note">Descriptions and declared platforms come from the tools' own manifest snapshots. A listing does not establish installation or usability in your environment. Expand an entry to inspect its source revision and refresh time.</p></section>
     <section class="section two-col" id="discovery"><div><p class="eyebrow">Let your agent help</p><h2>One skill.<br>The whole catalog.</h2><p style="margin-top:24px">Ask your agent to find a Smart Tool for your task. It can inspect the manifest, check the local environment, and follow the selected tool's own guidance.</p></div><div class="callout"><h3>Install the skill.</h3>{code_box(SKILL_INSTALL,'Terminal','install')}<p class="note">This installs guidance for your agent, not the tools or their credentials.</p>{link(repo_url('overview')+SKILL_PATH,'Read the skill','text-link')}</div></section>'''
 
 

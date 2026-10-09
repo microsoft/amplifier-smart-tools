@@ -18,7 +18,7 @@ import catalog_metadata as metadata
 
 REPO = 'https://github.com/example/fixture-tool.git'
 COMMIT = 'a' * 40
-DOMAIN = {'id': 'testing', 'label': 'Test environments',
+CATEGORY = {'id': 'testing', 'label': 'Test environments',
           'scope': 'Create isolated test environments.'}
 POINTER = {'repository': REPO}
 PROVENANCE = {
@@ -26,7 +26,7 @@ PROVENANCE = {
     'original_manifest_path': 'src/fixture/SMART_TOOL.md',
     'last_success': '2026-01-01T12:00:00Z',
 }
-LISTING = {'domain': 'testing', 'recommended': True,
+LISTING = {'category': 'testing', 'recommended': True,
            'reviewed_source': {'repository': REPO, 'path': '.', 'commit': COMMIT}}
 MANIFEST = '''---
 name: fixture-tool
@@ -56,8 +56,8 @@ def entry(root, slug, listing=None, snapshot=True):
     return directory
 
 
-def registry(root, domains=None):
-    write_json(root/'domains.json', {'domains': domains if domains is not None else [DOMAIN]})
+def registry(root, categories=None):
+    write_json(root/'categories.json', {'categories': categories if categories is not None else [CATEGORY]})
 
 
 def render(root):
@@ -76,7 +76,7 @@ class Cards(HTMLParser):
             self.cards.append(attrs)
 
 
-def test_legacy_has_no_domain_ui_and_preserves_slug_order(tmp_path):
+def test_legacy_has_no_category_ui_and_preserves_slug_order(tmp_path):
     entry(tmp_path, 'zulu')
     entry(tmp_path, 'alpha', snapshot=False)
     assert metadata.load_catalog_metadata(tmp_path) == (None, {})
@@ -86,38 +86,90 @@ def test_legacy_has_no_domain_ui_and_preserves_slug_order(tmp_path):
     assert hashlib.sha256(result.encode()).hexdigest() == 'fd4e43b3981064af78fb7f2fa361f572934a2a2c1d4afa2fe3f8c7255159160e'
     cards = Cards(result).cards
     assert [c['data-tool'] for c in cards] == ['alpha', 'zulu']
-    assert all('data-domain' not in c and 'hidden' not in c for c in cards)
-    assert 'id="domain"' not in result
-    assert 'catalog-domain' not in result
+    assert all('data-category' not in c and 'hidden' not in c for c in cards)
+    assert 'id="category"' not in result
+    assert 'catalog-category' not in result
     assert 'Recommended' not in result
     assert '2 tools' in result
     assert 'Snapshot refreshed: 2026-01-01T12:00:00Z' in result
     assert 'All tools are listed below' in result
 
 
-def test_recommendations_first_alternatives_and_unclassified_remain(tmp_path):
+def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     registry(tmp_path)
     entry(tmp_path, 'alpha')
-    entry(tmp_path, 'alternative', {'domain': 'testing', 'recommended': False})
+    entry(tmp_path, 'alternative', {'category': 'testing', 'recommended': False})
     entry(tmp_path, 'zulu', LISTING)
     result = render(tmp_path)
     cards = Cards(result).cards
     assert [c['data-tool'] for c in cards] == ['zulu', 'alpha', 'alternative']
-    assert [c['data-domain'] for c in cards] == ['testing', '', 'testing']
+    assert [c['data-category'] for c in cards] == ['testing', '', 'testing']
+    assert [c['data-recommended'] for c in cards] == ['true', 'false', 'false']
     assert all('hidden' not in c for c in cards)
     assert result.count('class="recommendation recommended"') == 1
-    assert 'All domains' in result and 'Not yet classified' in result
+    assert result.count('<summary class="recommendation recommended">Recommended</summary>') == 1
+    assert 'id="recommended-filter" hidden' in result
+    assert 'id="recommended-only" type="checkbox"' in result
+    guide_start = result.index('<section class="recommendation-guide"')
+    guide_end = result.index('</section>', guide_start)
+    guide = result[guide_start:guide_end]
+    assert 'hidden' not in guide.split('>', 1)[0]
+    assert '<details' not in guide
+    assert '<details class="recommendation-explainer">' not in result
+    assert result[:guide_start].count('<details') == result[:guide_start].count('</details>')
+    assert guide.count('<li>') == 3
+    assert 'What does Recommended mean?' in guide
+    assert 'Maintainers curate a Recommended tool as a starting point' in guide
+    assert 'recorded source revision' in guide
+    assert 'specification conformance' in guide
+    assert 'representative-task evidence' in guide
+    assert 'documented limitations' in guide
+    assert 'not certification or proof of host readiness' in guide
+    assert 'snapshot refresh does not renew the designation' in guide
+    assert 'documented capabilities, platform support, and prerequisites' in guide
+    assert 'your task first' in guide
+    assert 'preference among suitable options, not an override' in guide
+    assert 'consider suitable alternatives' in guide
+    assert 'Unclassified or undesignated tools are not a negative quality judgment' in guide
+    assert 'starts unchecked' in guide
+    assert 'all tools remain visible by default' in guide
+    assert result.count('<input id="recommended-only" type="checkbox">') == 1
+    assert 'All categories' in result and 'Not yet classified' in result
     assert 'Create isolated test environments.' in result
-    assert 'recorded source revision' in result
-    assert 'Not a certification or a check of local usability.' in result
+    assert (f'Maintainer-curated starting point for this category at recorded source '
+            f'revision <code>{COMMIT}</code>.') in result
+    assert 'Not certification or proof of host readiness.' in result
+    assert result.count('<details class="recommendation-disclosure">') == 1
+    assert ('See <a href="#recommendation-guide-title">What does Recommended '
+            'mean?</a> for review scope and limits.') in result
+    assert 'See the expanded “What does Recommended mean?” guide' not in result
     assert COMMIT in result and PROVENANCE['last_success'] in result
 
 
-def test_two_domains_can_each_have_a_recommendation(tmp_path):
-    second = dict(DOMAIN, id='authoring', label='Tool authoring')
-    registry(tmp_path, [DOMAIN, second])
+def test_zero_recommendations_keep_classified_and_unclassified_tools_visible(tmp_path):
+    registry(tmp_path)
+    entry(tmp_path, 'classified-alpha', {'category': 'testing', 'recommended': False})
+    entry(tmp_path, 'classified-beta', {'category': 'testing', 'recommended': False})
+    entry(tmp_path, 'unclassified')
+    result = render(tmp_path)
+    cards = Cards(result).cards
+    assert [card['data-tool'] for card in cards] == [
+        'classified-alpha', 'classified-beta', 'unclassified']
+    assert [card['data-category'] for card in cards] == ['testing', 'testing', '']
+    assert [card['data-recommended'] for card in cards] == ['false', 'false', 'false']
+    assert all('hidden' not in card for card in cards)
+    assert result.count('class="recommendation recommended"') == 0
+    assert result.count('<input id="recommended-only" type="checkbox">') == 1
+    assert '<button id="show-all-tools" class="button" type="button" hidden>Show all matching tools</button>' in result
+    assert '<button id="clear-filters" class="button" type="button">Clear all filters</button>' in result
+    assert '3 tools' in result
+
+
+def test_two_categories_can_each_have_a_recommendation(tmp_path):
+    second = dict(CATEGORY, id='authoring', label='Tool authoring')
+    registry(tmp_path, [CATEGORY, second])
     entry(tmp_path, 'zulu', LISTING)
-    entry(tmp_path, 'alpha', dict(LISTING, domain='authoring'))
+    entry(tmp_path, 'alpha', dict(LISTING, category='authoring'))
     result = render(tmp_path)
     assert result.count('class="recommendation recommended"') == 2
     assert [c['data-tool'] for c in Cards(result).cards] == ['alpha', 'zulu']
@@ -153,7 +205,7 @@ def test_every_identity_mismatch_loses_preference(tmp_path, target, field, value
     assert 'Recommendation needs review' in result
     assert 'class="recommendation recommended"' not in result
     assert [c['data-tool'] for c in Cards(result).cards] == ['alpha', 'zulu']
-    assert Cards(result).cards[1]['data-domain'] == 'testing'
+    assert Cards(result).cards[1]['data-category'] == 'testing'
 
 
 @pytest.mark.parametrize('missing', ['SMART_TOOL.md', 'provenance.json', 'both'])
@@ -195,7 +247,7 @@ def test_full_commit_pin_must_match_snapshot_commit(tmp_path, length, matches):
     assert ('Recommendation needs review' in result) is not matches
     assert [c['data-tool'] for c in Cards(result).cards] == (
         ['zulu', 'alpha'] if matches else ['alpha', 'zulu'])
-    assert next(c for c in Cards(result).cards if c['data-tool'] == 'zulu')['data-domain'] == 'testing'
+    assert next(c for c in Cards(result).cards if c['data-tool'] == 'zulu')['data-category'] == 'testing'
 
 
 def test_duplicate_designation_even_when_needing_review(tmp_path):
@@ -207,26 +259,33 @@ def test_duplicate_designation_even_when_needing_review(tmp_path):
 
 
 @pytest.mark.parametrize('data', [
-    [], {}, {'domains': None}, {'domains': {}, 'unknown': True},
-    {'domains': [dict(DOMAIN, extra=True)]},
-    {'domains': [dict(DOMAIN, id='Bad ID')]},
-    {'domains': [dict(DOMAIN, label=' ')]},
-    {'domains': [dict(DOMAIN, scope=1)]},
-    {'domains': [dict(DOMAIN, label='x\ninjected')]},
-    {'domains': [DOMAIN, DOMAIN]},
+    [], {}, {'categories': None}, {'categories': {}, 'unknown': True},
+    {'categories': [dict(CATEGORY, extra=True)]},
+    {'categories': [dict(CATEGORY, id='Bad ID')]},
+    {'categories': [dict(CATEGORY, label=' ')]},
+    {'categories': [dict(CATEGORY, scope=1)]},
+    {'categories': [dict(CATEGORY, label='x\ninjected')]},
+    {'categories': [CATEGORY, CATEGORY]},
 ])
 def test_invalid_registry(data):
     with pytest.raises(ValueError):
-        metadata.validate_domains(data)
+        metadata.validate_categories(data)
+
+
+def test_unreleased_domain_metadata_has_no_compatibility_alias(tmp_path):
+    write_json(tmp_path/'domains.json', {'domains': [CATEGORY]})
+    entry(tmp_path, 'tool', {'domain': 'testing', 'recommended': False})
+    with pytest.raises(ValueError, match='categories.json'):
+        render(tmp_path)
 
 
 @pytest.mark.parametrize('data', [
-    None, [], {}, {'domain': 'testing'}, {'recommended': False},
-    {'domain': 'unknown', 'recommended': False},
-    {'domain': 'testing', 'recommended': 'true'},
-    {'domain': 'testing', 'recommended': 1},
-    {'domain': 'testing', 'recommended': None},
-    {'domain': 'testing', 'recommended': True},
+    None, [], {}, {'category': 'testing'}, {'recommended': False},
+    {'category': 'unknown', 'recommended': False},
+    {'category': 'testing', 'recommended': 'true'},
+    {'category': 'testing', 'recommended': 1},
+    {'category': 'testing', 'recommended': None},
+    {'category': 'testing', 'recommended': True},
     dict(LISTING, extra=True),
     dict(LISTING, recommended=False),
     dict(LISTING, reviewed_source=dict(LISTING['reviewed_source'], ref='main')),
@@ -237,38 +296,38 @@ def test_invalid_registry(data):
 ])
 def test_invalid_listing(data):
     with pytest.raises(ValueError):
-        metadata.validate_listing(data, {'testing': DOMAIN})
+        metadata.validate_listing(data, {'testing': CATEGORY})
 
 
-def test_unknown_domain_error_has_relative_path_field_value_and_choices(tmp_path):
-    registry(tmp_path, [DOMAIN, dict(DOMAIN, id='authoring')])
-    entry(tmp_path, 'tool', {'domain': 'unknown', 'recommended': False})
+def test_unknown_category_error_has_relative_path_field_value_and_choices(tmp_path):
+    registry(tmp_path, [CATEGORY, dict(CATEGORY, id='authoring')])
+    entry(tmp_path, 'tool', {'category': 'unknown', 'recommended': False})
     with pytest.raises(ValueError) as error:
         metadata.load_catalog_metadata(tmp_path)
     assert str(error.value) == (
-        "tools/tool/listing.json: domain: Unknown domain 'unknown'; "
-        "approved ids: ['authoring', 'testing']")
+        "tools/tool/listing.json: category: Unknown category 'unknown'; "
+        "known ids: ['authoring', 'testing']")
     assert str(tmp_path) not in str(error.value)
 
 
 @pytest.mark.parametrize('data', [
-    {'domains': None},
-    {'domains': [dict(DOMAIN, label=' ')]},
+    {'categories': None},
+    {'categories': [dict(CATEGORY, label=' ')]},
 ])
 def test_registry_errors_name_relative_file(tmp_path, data):
-    write_json(tmp_path/'domains.json', data)
+    write_json(tmp_path/'categories.json', data)
     with pytest.raises(ValueError) as error:
         metadata.load_catalog_metadata(tmp_path)
-    assert str(error.value).startswith('domains.json: ')
+    assert str(error.value).startswith('categories.json: ')
     assert str(tmp_path) not in str(error.value)
 
 
-@pytest.mark.parametrize('field', ['domain', 'repository'])
+@pytest.mark.parametrize('field', ['category', 'repository'])
 def test_listing_errors_never_echo_credential_values(tmp_path, field):
     registry(tmp_path)
     credential_url = 'https://fixture-user:fixture-secret@github.com/example/tool'
     listing = copy.deepcopy(LISTING)
-    if field == 'domain':
+    if field == 'category':
         listing[field] = credential_url
     else:
         listing['reviewed_source'][field] = credential_url
@@ -288,7 +347,7 @@ def test_empty_registry_is_valid_and_shows_unclassified(tmp_path):
 
 def test_listings_without_registry_fail(tmp_path):
     entry(tmp_path, 'tool', LISTING)
-    with pytest.raises(ValueError, match='domains.json'):
+    with pytest.raises(ValueError, match='categories.json'):
         render(tmp_path)
 
 
@@ -300,8 +359,8 @@ def test_orphan_listing_fails(tmp_path):
 
 
 @pytest.mark.parametrize('raw', [
-    '{"domains":[],"domains":[]}',
-    '{"domains":[{"id":"testing","id":"other","label":"l","scope":"s"}]}',
+    '{"categories":[],"categories":[]}',
+    '{"categories":[{"id":"testing","id":"other","label":"l","scope":"s"}]}',
     '{"recommended":true,"reviewed_source":{"commit":"a","commit":"b"}}',
     '{"recommended":NaN}', '{"recommended":Infinity}', '{"broken":',
 ])
@@ -365,7 +424,7 @@ def test_symlink_files_fail(tmp_path, filename):
         render(tmp_path)
 
 
-@pytest.mark.parametrize('filename', ['domains.json', 'tools', 'tools/tool'])
+@pytest.mark.parametrize('filename', ['categories.json', 'tools', 'tools/tool'])
 def test_symlink_registry_and_directories_fail(tmp_path, filename):
     registry(tmp_path)
     entry(tmp_path, 'tool', LISTING)
@@ -378,7 +437,7 @@ def test_symlink_registry_and_directories_fail(tmp_path, filename):
 
 
 def test_dangling_symlink_is_not_absent_metadata(tmp_path):
-    (tmp_path/'domains.json').symlink_to(tmp_path/'missing')
+    (tmp_path/'categories.json').symlink_to(tmp_path/'missing')
     with pytest.raises(ValueError, match='symlinks'):
         render(tmp_path)
 
@@ -427,7 +486,7 @@ def test_half_snapshot_is_still_validated(tmp_path):
 
 
 def test_registry_and_manifest_display_are_escaped(tmp_path):
-    registry(tmp_path, [dict(DOMAIN, label='<img onerror="bad">', scope='<script>bad</script>')])
+    registry(tmp_path, [dict(CATEGORY, label='<img onerror="bad">', scope='<script>bad</script>')])
     directory = entry(tmp_path, 'tool', LISTING)
     (directory/'SMART_TOOL.md').write_text(MANIFEST.replace('Reproduce software failures', '<script>bad</script>'))
     result = render(tmp_path)
@@ -445,30 +504,30 @@ def test_registry_and_manifest_display_are_escaped(tmp_path):
     ('测试环境', '创建隔离环境并重现软件故障。'),
     ('测试<img onerror="bad">&\'', '创建<script>bad</script>&"\'环境'),
 ])
-def test_unicode_domain_labels_and_scopes_are_preserved_and_escaped(tmp_path, label, scope):
-    registry(tmp_path, [dict(DOMAIN, label=label, scope=scope)])
+def test_unicode_category_labels_and_scopes_are_preserved_and_escaped(tmp_path, label, scope):
+    registry(tmp_path, [dict(CATEGORY, label=label, scope=scope)])
     entry(tmp_path, 'tool', LISTING)
     result = render(tmp_path)
     escaped_label = build.html.escape(label, quote=True)
     escaped_scope = build.html.escape(scope, quote=True)
     assert f'<option value="testing">{escaped_label}</option>' in result
-    assert f'<div class="catalog-domain"><span>{escaped_label}</span>' in result
+    assert f'<div class="catalog-category"><span>{escaped_label}</span>' in result
     assert f'<dt>{escaped_label}</dt><dd>{escaped_scope}</dd>' in result
     assert '<img onerror=' not in result and '<script>bad</script>' not in result
-    assert Cards(result).cards[0]['data-domain'] == 'testing'
+    assert Cards(result).cards[0]['data-category'] == 'testing'
 
 
 def test_upstream_cannot_recommend_itself(tmp_path):
     registry(tmp_path)
     directory = entry(tmp_path, 'tool')
-    (directory/'SMART_TOOL.md').write_text(MANIFEST.replace('name: fixture-tool', 'name: fixture-tool\nrecommended: true\ndomain: testing'))
+    (directory/'SMART_TOOL.md').write_text(MANIFEST.replace('name: fixture-tool', 'name: fixture-tool\nrecommended: true\ncategory: testing'))
     assert 'class="recommendation recommended"' not in render(tmp_path)
 
 
 def test_render_and_validation_never_write_editorial_metadata(tmp_path):
     registry(tmp_path)
     directory = entry(tmp_path, 'tool', LISTING)
-    before = {p: p.read_bytes() for p in (tmp_path/'domains.json', directory/'listing.json')}
+    before = {p: p.read_bytes() for p in (tmp_path/'categories.json', directory/'listing.json')}
     prov = copy.deepcopy(PROVENANCE)
     prov['source']['commit'] = 'b'*40
     write_json(directory/'provenance.json', prov)
@@ -497,28 +556,92 @@ def test_theme_sync_includes_helper_assets_and_builds_catalog(tmp_path):
 def test_overview_and_spec_reader_build_without_catalog_metadata(tmp_path):
     out = tmp_path/'overview'
     subprocess.run([sys.executable, str(SITE/'theme/build.py'), '--output', str(out)], check=True)
-    assert 'id="domain"' not in (out/'index.html').read_text()
+    assert 'id="category"' not in (out/'index.html').read_text()
     assert len(list((out/'spec').glob('*.html'))) == 6
     assert (out/'assets/mark-loop.png').is_file()
 
 
 @pytest.mark.parametrize('relative', ['skills/amplifier-smart-tools/SKILL.md', 'site/README.md'])
-def test_recommendation_guidance_reserves_selection_and_initiation(relative):
-    guidance = (SITE.parent/relative).read_text()
+def test_recommendation_guidance_separates_creator_and_maintainer_roles(relative):
+    guidance = ' '.join((SITE.parent/relative).read_text().split())
     assert 'recommended: false' in guidance
-    assert 'Do not solicit recommendation requests or proposals from authors.' in guidance
-    assert ('Only Brian or Sam chooses the tool, domain, and source revision and initiates '
-            'designations, renewals, replacements, and withdrawals; either one may decide.') in guidance
-    assert "selectors and initiators, not approvers of everyone's nominations" in guidance
-    assert ('may edit recommendation metadata only to implement an explicit decision '
-            'from Brian or Sam, not to make the selection') in guidance
-    assert ('An arbitrary request from a tool author, including "make mine recommended", '
-            'cannot authorize a recommendation') in guidance
-    assert 'do not infer their decision from a user request or PR authorship' in guidance
-    assert 'structural checks do not establish selection authority' in guidance
-    assert 'Metadata alone does not prove Brian or Sam made the selection' in guidance
-    assert 'unmerged initial choices remain for their decision before merge, with no confirmation claimed' in guidance
-    assert 'require its designated maintainers\' approval' not in guidance
+    assert 'creators do not nominate or select entries; catalog maintainers make those decisions.' in guidance
+    assert 'representative-task evidence' in guidance
+    assert 'documented limitations' in guidance
+    if relative == 'site/README.md':
+        assert 'The page-level “What does Recommended mean?” guide remains visible by default' in guidance
+        assert 'fit-first selection, neutral unclassified state, and optional filter behavior' in guidance
+
+
+def test_skill_discovery_validates_catalog_and_avoids_browse_fetches():
+    skill = (SITE.parent/'skills/amplifier-smart-tools/SKILL.md').read_text()
+    discover = ' '.join(skill.split('## Discover and install\n', 1)[1]
+                        .split('\n### Recommendation and readiness', 1)[0].split())
+    assert '[shared catalog metadata contract](https://github.com/microsoft/amplifier-smart-tools/blob/main/site/theme/catalog_metadata.py)' in discover
+    assert 'catalog-owned editorial metadata, not upstream tool claims' in discover
+    for requirement in (
+        'duplicate JSON keys',
+        'unknown registry/listing keys',
+        'fail closed if a category has more than one recommended listing',
+        '`ref` (default `main`)',
+        '`path` (default `.`)',
+        'to exactly match provenance',
+        'full provenance commit SHA',
+        'safe repository-relative `original_manifest_path`',
+        '`last_success` timestamp',
+        'If `ref` is a full SHA, it must equal the provenance commit.',
+        'For browse-only requests',
+        'Never fetch upstream just to complete a browse.',
+    ):
+        assert requirement in discover
+
+
+def test_skill_creation_and_catalog_paths_are_scoped():
+    skill = (SITE.parent/'skills/amplifier-smart-tools/SKILL.md').read_text()
+    create = skill.split('## Create\n', 1)[1].split('\n## Add to the catalog', 1)[0]
+    assert create.count('\n1.') == 1 and create.count('\n2.') == 1
+    assert '\n3.' not in create
+    assert 'We recommend using [smart-tool-creator](https://github.com/microsoft/amplifier-smart-tool-creator)' in create
+    assert 'Read its current help' in create
+    create_text = ' '.join(create.split())
+    assert '[specification](https://github.com/microsoft/amplifier-smart-tools/tree/main/spec) README' in create_text
+    assert 'only the chapters needed' in create
+    assert '[reference examples](https://github.com/microsoft/amplifier-smart-tools/blob/main/spec/examples.md)' in create
+    assert 'uv tool install' not in create
+    assert 'catalog' not in create.casefold()
+
+    add_to_catalog = skill.split('## Add to the catalog\n', 1)[1]
+    add_text = ' '.join(add_to_catalog.split())
+    assert all(add_to_catalog.count(f'\n{number}.') == 1 for number in (1, 2, 3))
+    assert 'ordinary classification' in add_text
+    assert 'recommended: false' in add_text
+    assert 'no `reviewed_source`' in add_text
+    assert 'catalog refresh action generates those snapshots' in add_text
+    assert 'Submit a pull request' in add_text
+    assert '[catalog README contribution instructions](https://github.com/microsoft/amplifier-smart-tools-catalog#contributing)' in add_text
+    assert 'request a recommendation' not in add_text
+    assert 'maintainer' not in add_text.casefold()
+
+
+def test_catalog_maintainer_procedure_references_canonical_guide():
+    guidance = ' '.join((SITE.parent/'site/README.md').read_text().split())
+    assert '### Maintainer recommendation review' in guidance
+    assert '[maintainer curation guide](https://github.com/microsoft/amplifier-smart-tools-catalog/blob/main/docs/maintainers.md)' in guidance
+    assert 'normative maintainer roles, review standard, merge gate' in guidance
+    assert 'For each designation, catalog maintainers should:' not in guidance
+    assert 'Run the specification conformance kit against that revision.' not in guidance
+
+
+def test_skill_preserves_keep_tools_current_guidance():
+    guidance = (SITE.parent/'skills/amplifier-smart-tools/SKILL.md').read_text()
+    keep_current = ' '.join(guidance.split('### Keep tools current\n', 1)[1]
+                             .split('\n## Create', 1)[0].split())
+    assert 'During an authorized tool invocation' in keep_current
+    assert 'permission mode allows the update' in keep_current
+    assert 'Catalog browsing and read-only availability or readiness checks never update tools' in keep_current
+    assert 'if the user asked only for a check, report an available update without applying it unless the user authorizes updating' in keep_current
+    assert 'If the install is behind, automatically update the tool, except in the cases outlined above.' in keep_current
+    assert 'npx skills update amplifier-smart-tools' in keep_current
 
 
 def test_website_artifact_retention_and_no_pr_deploy():

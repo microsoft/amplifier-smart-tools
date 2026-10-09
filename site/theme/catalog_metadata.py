@@ -136,30 +136,31 @@ def validate_provenance(data):
     return data
 
 
-def validate_domains(data):
-    closed(data, ('domains',))
-    if not isinstance(data['domains'], list):
-        raise ValueError('domains must be a list')
-    domains = {}
-    for domain in data['domains']:
-        closed(domain, ('id', 'label', 'scope'))
-        identity = identifier(domain['id'])
-        if identity in domains:
-            raise ValueError('Duplicate domain identifier')
-        text(domain['label'], 'label')
-        text(domain['scope'], 'scope')
-        domains[identity] = domain
-    return domains
+def validate_categories(data):
+    closed(data, ('categories',))
+    if not isinstance(data['categories'], list):
+        raise ValueError('categories must be a list')
+    categories = {}
+    for category in data['categories']:
+        closed(category, ('id', 'label', 'scope'))
+        identity = identifier(category['id'])
+        if identity in categories:
+            raise ValueError('Duplicate category identifier')
+        text(category['label'], 'label')
+        text(category['scope'], 'scope')
+        categories[identity] = category
+    return categories
 
 
-def validate_listing(data, domains):
-    closed(data, ('domain', 'recommended'), ('reviewed_source',))
+def validate_listing(data, categories):
+    closed(data, ('category', 'recommended'), ('reviewed_source',))
     try:
-        domain = identifier(data['domain'])
+        category = identifier(data['category'])
     except ValueError as exc:
-        raise ValueError(f'domain: {exc}') from exc
-    if domain not in domains:
-        raise ValueError(f'domain: Unknown domain {domain!r}; approved ids: {sorted(domains)!r}')
+        raise ValueError(f'category: {exc}') from exc
+    if category not in categories:
+        raise ValueError(
+            f'category: Unknown category {category!r}; known ids: {sorted(categories)!r}')
     if type(data['recommended']) is not bool:
         raise ValueError('recommended must be an explicit boolean')
     if data['recommended']:
@@ -191,10 +192,11 @@ def load_catalog_metadata(root):
     """Validate all editorial files and designation uniqueness before rendering."""
     root = Path(root)
     try:
-        registry = checked_path(root/'domains.json', root)
-        domains = validate_domains(read_json(registry, root)) if registry.exists() else None
+        registry = checked_path(root/'categories.json', root)
+        categories = (validate_categories(read_json(registry, root))
+                      if registry.exists() else None)
     except ValueError as exc:
-        raise ValueError(f'domains.json: {exc}') from exc
+        raise ValueError(f'categories.json: {exc}') from exc
     listings, designated = {}, set()
     # Enumerate directories, not just pointers, so orphan listings cannot hide.
     tools = checked_path(root/'tools', root)
@@ -207,20 +209,20 @@ def load_catalog_metadata(root):
             if not listing.exists():
                 continue
             identifier(directory.name)
-            if domains is None:
-                raise ValueError('Listings require domains.json')
+            if categories is None:
+                raise ValueError('Listings require categories.json')
             source = checked_path(directory/'source.json', root)
             if not source.is_file():
                 raise ValueError('Listing requires a source pointer')
-            data = validate_listing(read_json(listing, root), domains)
+            data = validate_listing(read_json(listing, root), categories)
             if data['recommended']:
-                if data['domain'] in designated:
-                    raise ValueError('At most one recommendation designation per domain')
-                designated.add(data['domain'])
+                if data['category'] in designated:
+                    raise ValueError('At most one recommendation designation per category')
+                designated.add(data['category'])
         except ValueError as exc:
             raise ValueError(f'{directory.relative_to(root).as_posix()}/listing.json: {exc}') from exc
         listings[directory.name] = data
-    return domains, listings
+    return categories, listings
 
 
 def recommendation_state(pointer, provenance, listing, snapshot_present=True):
