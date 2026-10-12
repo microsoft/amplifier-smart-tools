@@ -74,8 +74,15 @@ class Cards(HTMLParser):
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         if tag == 'article' and 'data-tool' in attrs:
-            self.card = dict(attrs, text='')
+            self.card = dict(attrs, text='', badges=[], ids=[])
             self.cards.append(self.card)
+        elif self.card is not None:
+            if attrs.get('id'):
+                self.card['ids'].append(attrs['id'])
+            if tag in ('span', 'summary'):
+                classes = (attrs.get('class') or '').split()
+                if 'recommendation' in classes:
+                    self.card['badges'].append(classes)
 
     def handle_endtag(self, tag):
         if tag == 'article':
@@ -139,10 +146,10 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     result = render(tmp_path)
     layout = CatalogLayout(result)
     cards = Cards(result).cards
-    assert [card['data-tool'] for card in cards] == ['zulu', 'alternative', 'alpha']
-    assert [card['data-category'] for card in cards] == ['testing', 'testing', '']
-    assert [card['data-recommended'] for card in cards] == ['true', 'false', 'false']
-    assert [card['data-name'] for card in cards] == ['Zulu', 'Alternative', 'Alpha']
+    assert [card['data-tool'] for card in cards] == ['zulu', 'zulu', 'alternative', 'alpha']
+    assert [card['data-category'] for card in cards] == ['testing', 'testing', 'testing', '']
+    assert [card['data-recommended'] for card in cards] == ['true', 'true', 'false', 'false']
+    assert [card['data-name'] for card in cards] == ['Zulu', 'Zulu', 'Alternative', 'Alpha']
     assert all('hidden' not in card for card in cards)
     by_slug = {card['data-tool']: ' '.join(card['text'].split()) for card in cards}
     assert 'Category: Test environments' in by_slug['zulu']
@@ -151,13 +158,17 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     assert 'Category: Not yet classified' in by_slug['alpha']
     assert 'Not currently recommended' not in result
 
-    placements = {attrs['data-tool']: region for attrs, region in layout.cards}
-    assert placements == {
-        'zulu': 'recommended-region',
-        'alpha': 'category-group-unclassified',
-        'alternative': 'category-group-testing',
-    }
-    assert len(placements) == len(cards)
+    placements = [(attrs['data-tool'], region) for attrs, region in layout.cards]
+    assert placements == [
+        ('zulu', 'recommended-region'),
+        ('zulu', 'category-group-testing'),
+        ('alternative', 'category-group-testing'),
+        ('alpha', 'category-group-unclassified'),
+    ]
+    assert cards[0]['badges'] == []
+    assert cards[1]['badges'] == [['recommendation', 'recommended']]
+    assert all(not card['ids'] for card in cards)
+    assert [card['data-tool'] for card in cards].count('zulu') == 2
     assert 'recommended-region' in layout.sections
     assert 'other-tools' in layout.sections
     assert 'category-group-testing' in layout.sections
@@ -176,9 +187,10 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     assert canonical_header in result
     assert 'Browse by category' not in result
     assert 'category-navigation' not in result
+    assert '<p class="catalog-count" id="result-count" role="status">3 tools</p>' in result
     assert '<span class="catalog-count" id="recommended-count">1 tool</span>' in result
-    assert '<span class="catalog-count" id="other-count">2 tools</span>' in result
-    assert 'id="category-group-count-testing">1 tool</span>' in result
+    assert '<span class="catalog-count" id="other-count">3 tools</span>' in result
+    assert 'id="category-group-count-testing">2 tools</span>' in result
     assert 'id="category-group-count-unclassified">1 tool</span>' in result
     assert '<select id="category">' in result
     assert '<option value="">All categories</option>' in result
@@ -194,7 +206,7 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
         assert removed not in result
     assert 'recommended-only' not in result
     assert 'show-all-tools' not in result
-    assert 'id="other-tools-heading">Tools</h2>' in result
+    assert 'id="other-tools-heading">All tools</h2>' in result
     assert ('<div class="sort-field"><label for="tool-sort">Sort by</label>'
             '<select id="tool-sort"><option value="category">Category</option>'
             '<option value="name">Name</option></select></div>') in result
@@ -205,10 +217,10 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     assert result.count('<span class="recommendation recommended">Recommended</span>') == 1
     assert '<details class="recommendation-disclosure">' not in result
     assert '<details class="recommendation-guide">' not in result
-    assert result.count('<summary>Full description and source</summary>') == 3
-    assert result.count(f'Source commit: <code>{COMMIT}</code>') == 3
-    assert result.count(f'<code>{COMMIT}</code>') == 3
-    assert result.count(PROVENANCE['last_success']) == 3
+    assert result.count('<summary>Full description and source</summary>') == 4
+    assert result.count(f'Source commit: <code>{COMMIT}</code>') == 4
+    assert result.count(f'<code>{COMMIT}</code>') == 4
+    assert result.count(PROVENANCE['last_success']) == 4
 
     css = (SITE / 'theme' / 'style.css').read_text(encoding='utf-8')
     assert ('.catalog-hero h1 {\n'
@@ -259,7 +271,7 @@ def test_zero_recommendations_keep_classified_and_unclassified_tools_visible(tmp
     assert 'id="recommended-count">0 tools</span>' in result
     assert 'id="recommended-empty"' not in result
     assert 'id="recommended-region" aria-labelledby="recommended-heading" hidden>' in result
-    assert 'id="other-tools-heading">Tools</h2>' in result
+    assert 'id="other-tools-heading">All tools</h2>' in result
     assert 'id="other-count">3 tools</span>' in result
     assert 'id="category-group-count-testing">2 tools</span>' in result
     assert 'id="category-group-count-unclassified">1 tool</span>' in result
@@ -276,9 +288,9 @@ def test_two_categories_can_each_have_a_recommendation(tmp_path):
     entry(tmp_path, 'alpha', dict(LISTING, category='authoring'))
     result = render(tmp_path)
     assert result.count('<span class="recommendation recommended">Recommended</span>') == 2
-    assert [c['data-tool'] for c in Cards(result).cards] == ['alpha', 'zulu']
-    assert result.count('<summary>Full description and source</summary>') == 2
-    assert result.count(f'Source commit: <code>{COMMIT}</code>') == 2
+    assert [c['data-tool'] for c in Cards(result).cards] == ['alpha', 'zulu', 'zulu', 'alpha']
+    assert result.count('<summary>Full description and source</summary>') == 4
+    assert result.count(f'Source commit: <code>{COMMIT}</code>') == 4
     assert '<details class="recommendation-disclosure">' not in result
     assert 'What does Recommended mean?' not in result
 
@@ -358,12 +370,14 @@ def test_full_commit_pin_must_match_snapshot_commit(tmp_path, length, matches):
     result = render(tmp_path)
     assert ('class="recommendation recommended"' in result) is matches
     assert ('Recommendation needs review' in result) is not matches
-    assert [c['data-tool'] for c in Cards(result).cards] == ['zulu', 'alpha']
-    placements = {attrs['data-tool']: region for attrs, region in CatalogLayout(result).cards}
-    assert placements == {
-        'zulu': 'recommended-region' if matches else 'category-group-testing',
-        'alpha': 'category-group-unclassified',
-    }
+    assert [c['data-tool'] for c in Cards(result).cards] == (
+        ['zulu', 'zulu', 'alpha'] if matches else ['zulu', 'alpha'])
+    placements = [(attrs['data-tool'], region) for attrs, region in CatalogLayout(result).cards]
+    assert placements == (
+        [('zulu', 'recommended-region'), ('zulu', 'category-group-testing'),
+         ('alpha', 'category-group-unclassified')]
+        if matches else
+        [('zulu', 'category-group-testing'), ('alpha', 'category-group-unclassified')])
     assert next(c for c in Cards(result).cards if c['data-tool'] == 'zulu')['data-category'] == 'testing'
 
 
@@ -703,7 +717,7 @@ def test_recommendation_guidance_separates_creator_and_maintainer_roles(relative
         assert ('Category scopes remain registry metadata and are not inserted into the control bar '
                 'or displayed when a category is selected.') in guidance
         assert 'no second category-navigation area.' in guidance
-        assert 'It has no empty-state placeholder.' in guidance
+        assert 'has no empty-state placeholder.' in guidance
 
 
 def test_skill_discovery_validates_catalog_and_avoids_browse_fetches():

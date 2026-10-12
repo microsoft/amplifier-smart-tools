@@ -37,7 +37,12 @@ function counter(selector) {
   return node;
 }
 
-function catalog({ legacy = false, zeroRecommendations = false, twoRecommendations = false } = {}) {
+function catalog({
+  legacy = false,
+  zeroRecommendations = false,
+  twoRecommendations = false,
+  duplicateCountFixture = false,
+} = {}) {
   const card = (dataset, heading = dataset.name || dataset.tool) => {
     const result = element(dataset);
     const title = element();
@@ -46,7 +51,11 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
     result.children.push(title);
     return result;
   };
-  const cards = zeroRecommendations ? [
+  const allToolCards = duplicateCountFixture ? [
+    card({ tool: 'digital-twin-universe', name: 'Digital Twin Universe', search: 'digital twin test environments linux', platforms: 'linux', category: 'testing', recommended: 'true' }),
+    card({ tool: 'smart-tool-creator', name: 'Smart Tool Creator', search: 'smart tool development macos', platforms: 'macos', category: 'authoring', recommended: 'true' }),
+    card({ tool: 'ordinary', name: 'Ordinary', search: 'test environments linux', platforms: 'linux', category: 'testing', recommended: 'false' }),
+  ] : zeroRecommendations ? [
     card({ tool: 'classified-alpha', name: 'Classified Alpha', search: 'research linux', platforms: 'linux', category: 'testing', recommended: 'false' }),
     card({ tool: 'classified-beta', name: 'Classified Beta', search: 'research macos', platforms: 'macos', category: 'testing', recommended: 'false' }),
     card({ tool: 'unclassified', name: 'Unclassified', search: 'research windows', platforms: 'windows', category: '', recommended: 'false' }),
@@ -59,6 +68,10 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
       card({ tool: 'recommended-two', name: 'Another Recommended', search: 'create tool macos', platforms: 'macos', category: 'authoring', recommended: 'true' }),
     ] : []),
   ];
+  const featuredCards = legacy ? [] : allToolCards
+    .filter(item => item.dataset.recommended === 'true')
+    .map(item => card({ ...item.dataset }));
+  const cards = legacy ? allToolCards : [...featuredCards, ...allToolCards];
   const ids = Object.fromEntries([
     'tool-search', 'platform', 'result-count', 'empty-results', 'clear-filters',
     ...(legacy ? [] : [
@@ -85,10 +98,16 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
   if (!legacy) {
     ids['catalog-filters'].hidden = true;
     ids['other-tools'].hidden = false;
+    ids['other-tools'].querySelectorAll = selector =>
+      selector === '[data-tool]' ? allToolCards : [];
+    ids['recommended-region'].querySelectorAll = selector =>
+      selector === '[data-tool]' ? featuredCards : [];
+    recommendedGrid.querySelectorAll = selector =>
+      selector === '[data-tool]' ? featuredCards : [];
     ids['other-empty'].hidden = true;
     ids['recommended-region'].hidden = zeroRecommendations;
     for (const category of ['authoring', 'testing', '__unclassified__']) {
-      const groupCards = cards.filter(card => card.dataset.recommended !== 'true' &&
+      const groupCards = allToolCards.filter(card =>
         (card.dataset.category || '__unclassified__') === category);
       if (!groupCards.length) continue;
       const group = element({ categoryGroup: category });
@@ -101,9 +120,7 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
       groups.push(group);
       groupGrids.push(grid);
     }
-    for (const recommended of cards.filter(card => card.dataset.recommended === 'true')) {
-      recommendedGrid.appendChild(recommended);
-    }
+    for (const recommended of featuredCards) recommendedGrid.appendChild(recommended);
   }
 
   const document = {
@@ -115,13 +132,12 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
     },
   };
   vm.runInNewContext(script, { document });
-  const originalParents = new Map(cards
-    .filter(card => card.dataset.recommended !== 'true')
-    .map(card => [card, card.parentElement]));
+  const originalParents = new Map(allToolCards.map(card => [card, card.parentElement]));
   return {
-    cards, ids, groups, groupGrids, originalParents, recommendedGrid, nameGrid,
+    cards, allToolCards, featuredCards, ids, groups, groupGrids, originalParents, recommendedGrid, nameGrid,
     group(category) { return groups.find(group => group.dataset.categoryGroup === category); },
-    visible() { return cards.filter(card => !card.hidden).map(card => card.dataset.tool); },
+    visible() { return allToolCards.filter(card => !card.hidden).map(card => card.dataset.tool); },
+    visibleFeatured() { return featuredCards.filter(card => !card.hidden).map(card => card.dataset.tool); },
     placed() {
       return [
         ...recommendedGrid.children.filter(child => child.dataset.tool),
@@ -134,18 +150,31 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
 }
 
 test('recommendations and ordinary tools start in separate visible regions with live totals', () => {
-  const view = catalog();
-  assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy']);
+  const view = catalog({ duplicateCountFixture: true });
+  assert.deepEqual(view.visible(), ['digital-twin-universe', 'smart-tool-creator', 'ordinary']);
+  assert.deepEqual(view.visibleFeatured(), ['digital-twin-universe', 'smart-tool-creator']);
+  assert.equal(view.cards.length, 5);
+  assert.equal(new Set(view.cards.map(card => card.dataset.tool)).size, 3);
   assert.equal(view.ids['catalog-filters'].hidden, false);
   assert.equal(view.ids['tool-sort'].value, 'category');
   assert.equal(view.nameGrid.hidden, true);
-  assert.equal(view.ids['result-count'].textContent, '4 tools');
-  assert.equal(view.ids['recommended-count'].textContent, '1 tool');
+  assert.equal(view.ids['result-count'].textContent, '3 tools');
+  assert.equal(view.ids['recommended-count'].textContent, '2 tools');
   assert.equal(view.ids['other-count'].textContent, '3 tools');
+  assert.equal(view.allToolCards.filter(card => card.dataset.recommended === 'true').length, 2);
   assert.equal(view.ids['empty-results'].hidden, true);
   assert.equal(view.ids['recommended-region'].hidden, false);
   assert.equal(view.ids['other-empty'].hidden, true);
-  assert.deepEqual(view.groups.map(group => group.hidden), [false, false, false]);
+  assert.deepEqual(view.groups.map(group => group.hidden), [false, false]);
+
+  view.set('tool-search', 'digital twin', 'input');
+  view.set('category', 'testing', 'change');
+  view.set('platform', 'linux', 'change');
+  assert.deepEqual(view.visible(), ['digital-twin-universe']);
+  assert.deepEqual(view.visibleFeatured(), ['digital-twin-universe']);
+  assert.equal(view.ids['result-count'].textContent, '1 tool');
+  assert.equal(view.ids['recommended-count'].textContent, '1 tool');
+  assert.equal(view.ids['other-count'].textContent, '1 tool');
 });
 
 test('Name is a global stable alphabetical list; Category restores original groups without duplicates', () => {
@@ -154,13 +183,13 @@ test('Name is a global stable alphabetical list; Category restores original grou
   view.set('tool-sort', 'name', 'change');
 
   assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
-    ['legacy', 'alternative', 'authoring']);
+    ['legacy', 'alternative', 'authoring', 'recommended']);
   assert.deepEqual(view.recommendedGrid.children.map(card => card.dataset.tool), ['recommended']);
   assert.deepEqual(view.groups.map(group => group.hidden), [true, true, true]);
   assert.equal(view.ids['result-count'].textContent, '4 tools');
-  assert.equal(view.ids['other-count'].textContent, '3 tools');
+  assert.equal(view.ids['other-count'].textContent, '4 tools');
   assert.deepEqual(view.placed().map(card => card.dataset.tool),
-    ['recommended', 'legacy', 'alternative', 'authoring']);
+    ['recommended', 'legacy', 'alternative', 'authoring', 'recommended']);
   assert.equal(new Set(view.placed()).size, view.cards.length);
 
   view.set('tool-sort', 'category', 'change');
@@ -168,21 +197,41 @@ test('Name is a global stable alphabetical list; Category restores original grou
   assert.deepEqual(view.groups.map(group => group.hidden), [false, false, false]);
   for (const [card, parent] of originalParents) assert.equal(card.parentElement, parent);
   assert.deepEqual(view.placed().map(card => card.dataset.tool),
-    ['recommended', 'authoring', 'alternative', 'legacy']);
+    ['recommended', 'authoring', 'recommended', 'alternative', 'legacy']);
   assert.equal(new Set(view.placed()).size, view.cards.length);
 });
 
-test('both Recommended cards stay in their own region above the globally sorted ordinary tools', () => {
+test('two featured recommendations remain above Name-sorted All tools and survive clear', () => {
   const view = catalog({ twoRecommendations: true });
   view.set('tool-sort', 'name', 'change');
 
   assert.deepEqual(view.recommendedGrid.children.map(card => card.dataset.tool),
     ['recommended', 'recommended-two']);
+  assert.equal(view.featuredCards.filter(card => card.dataset.recommended === 'true').length, 2);
+  assert.equal(view.allToolCards.filter(card => card.dataset.recommended === 'true').length, 2);
   assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
-    ['legacy', 'alternative', 'authoring']);
+    ['legacy', 'alternative', 'recommended-two', 'authoring', 'recommended']);
   assert.deepEqual(view.placed().slice(0, 2).map(card => card.dataset.tool),
     ['recommended', 'recommended-two']);
+  assert.equal(view.ids['result-count'].textContent, '5 tools');
+  assert.equal(view.ids['recommended-count'].textContent, '2 tools');
+  assert.equal(view.ids['other-count'].textContent, '5 tools');
   assert.equal(new Set(view.placed()).size, view.cards.length);
+
+  view.set('tool-search', 'no-such-tool', 'input');
+  assert.equal(view.ids['result-count'].textContent, '0 tools');
+  assert.equal(view.ids['recommended-count'].textContent, '0 tools');
+  assert.equal(view.ids['other-count'].textContent, '0 tools');
+  view.ids['clear-filters'].dispatch('click');
+
+  assert.equal(view.ids['tool-sort'].value, 'name');
+  assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy', 'recommended-two']);
+  assert.deepEqual(view.visibleFeatured(), ['recommended', 'recommended-two']);
+  assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
+    ['legacy', 'alternative', 'recommended-two', 'authoring', 'recommended']);
+  assert.equal(view.ids['result-count'].textContent, '5 tools');
+  assert.equal(view.ids['recommended-count'].textContent, '2 tools');
+  assert.equal(view.ids['other-count'].textContent, '5 tools');
 });
 
 test('ordering changes only Tools while shared filters retain their counts', () => {
@@ -198,10 +247,10 @@ test('ordering changes only Tools while shared filters retain their counts', () 
   assert.deepEqual(view.visible(), ['recommended', 'alternative']);
   assert.equal(view.ids['result-count'].textContent, '2 tools');
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '1 tool');
-  assert.equal(view.group('testing').querySelector('.group-count').textContent, '1 tool');
+  assert.equal(view.ids['other-count'].textContent, '2 tools');
+  assert.equal(view.group('testing').querySelector('.group-count').textContent, '2 tools');
   assert.deepEqual(view.nameGrid.children.filter(card => !card.hidden).map(card => card.dataset.tool),
-    ['alternative']);
+    ['alternative', 'recommended']);
   assert.equal(view.ids['recommended-region'].hidden, false);
   assert.equal(view.ids['other-empty'].hidden, true);
 });
@@ -213,8 +262,8 @@ test('category selection updates counts without inserting category-scope copy', 
   assert.deepEqual(view.visible(), ['recommended', 'alternative']);
   assert.equal(view.ids['recommended-region'].hidden, false);
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '1 tool');
-  assert.equal(view.group('testing').querySelector('.group-count').textContent, '1 tool');
+  assert.equal(view.ids['other-count'].textContent, '2 tools');
+  assert.equal(view.group('testing').querySelector('.group-count').textContent, '2 tools');
   assert.equal(view.group('authoring').hidden, true);
 
   view.set('category', '', 'change');
@@ -228,11 +277,12 @@ test('zero matching recommendations hide that region; global empty state is not 
   view.set('tool-search', '  ISOLATED   failure ', 'input');
   view.set('platform', 'macos', 'change');
   assert.deepEqual(view.visible(), ['recommended']);
+  assert.deepEqual(view.visibleFeatured(), ['recommended']);
   assert.equal(view.ids['result-count'].textContent, '1 tool');
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '0 tools');
+  assert.equal(view.ids['other-count'].textContent, '1 tool');
   assert.equal(view.ids['recommended-region'].hidden, false);
-  assert.equal(view.ids['other-empty'].hidden, false);
+  assert.equal(view.ids['other-empty'].hidden, true);
   assert.equal(view.ids['other-tools'].hidden, false);
 
   view.set('category', 'authoring', 'change');
@@ -281,7 +331,7 @@ test('search includes category labels and the displayed tool name', () => {
   view.set('tool-search', 'TEST environments', 'input');
   assert.deepEqual(view.visible(), ['recommended', 'alternative']);
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '1 tool');
+  assert.equal(view.ids['other-count'].textContent, '2 tools');
   view.set('tool-search', 'eCho', 'input');
   assert.deepEqual(view.visible(), ['authoring']);
   assert.equal(view.ids['other-count'].textContent, '1 tool');
@@ -301,7 +351,7 @@ test('clear resets filters and returns focus to search', () => {
   assert.equal(view.ids['result-count'].textContent, '4 tools');
   assert.equal(view.ids['tool-search'].focused, true);
   assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
-    ['legacy', 'alternative', 'authoring']);
+    ['legacy', 'alternative', 'authoring', 'recommended']);
   assert.deepEqual(view.groups.map(group => group.hidden), [true, true, true]);
 });
 

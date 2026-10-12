@@ -23,15 +23,18 @@ if (search) {
   const toolSort = document.getElementById('tool-sort');
   const filters = document.getElementById('catalog-filters');
   const cards = [...document.querySelectorAll('[data-tool]')];
-  const ordinaryCards = cards.filter(card => card.dataset.recommended !== 'true');
-  const originalParents = new Map(ordinaryCards.map(card => [card, card.parentElement]));
+  const recommendedRegion = document.getElementById('recommended-region');
+  const featuredCards = recommendedRegion
+    ? [...recommendedRegion.querySelectorAll('[data-tool]')] : [];
+  const otherTools = document.getElementById('other-tools');
+  const allToolCards = otherTools
+    ? [...otherTools.querySelectorAll('[data-tool]')] : cards;
+  const originalParents = new Map(allToolCards.map(card => [card, card.parentElement]));
   const groups = [...document.querySelectorAll('[data-category-group]')];
   const nameGrid = document.getElementById('other-tools-by-name');
   const count = document.getElementById('result-count');
   const recommendedCount = document.getElementById('recommended-count');
   const otherCount = document.getElementById('other-count');
-  const recommendedRegion = document.getElementById('recommended-region');
-  const otherTools = document.getElementById('other-tools');
   const otherEmpty = document.getElementById('other-empty');
   const empty = document.getElementById('empty-results');
   const clearFilters = document.getElementById('clear-filters');
@@ -52,10 +55,10 @@ if (search) {
     if (!toolSort || !nameGrid) return false;
     const byName = toolSort.value === 'name';
     if (byName) {
-      for (const card of [...ordinaryCards].sort(compareByName)) nameGrid.appendChild(card);
+      for (const card of [...allToolCards].sort(compareByName)) nameGrid.appendChild(card);
       nameGrid.hidden = false;
     } else {
-      for (const card of ordinaryCards) originalParents.get(card)?.appendChild(card);
+      for (const card of allToolCards) originalParents.get(card)?.appendChild(card);
       nameGrid.hidden = true;
     }
     return byName;
@@ -68,20 +71,21 @@ if (search) {
   function filter() {
     const nameSorted = applySort();
     const baseMatches = new Map(cards.map(card => [card, matchesBase(card)]));
-    const visibleCards = cards.filter(card => baseMatches.get(card) &&
-      (!category || !category.value || categoryOf(card) === category.value));
+    const matchesCategory = card => baseMatches.get(card) &&
+      (!category || !category.value || categoryOf(card) === category.value);
+    const visibleCards = cards.filter(matchesCategory);
     const visibleSet = new Set(visibleCards);
     for (const card of cards) card.hidden = !visibleSet.has(card);
 
-    const visibleRecommended = visibleCards.filter(card => card.dataset.recommended === 'true').length;
-    const visibleOther = visibleCards.length - visibleRecommended;
-    count.textContent = plural(visibleCards.length);
+    const visibleRecommended = featuredCards.filter(matchesCategory).length;
+    const visibleOther = allToolCards.filter(matchesCategory).length;
+    count.textContent = plural(visibleOther);
     if (recommendedCount) recommendedCount.textContent = plural(visibleRecommended);
     if (otherCount) otherCount.textContent = plural(visibleOther);
     if (recommendedRegion) recommendedRegion.hidden = visibleRecommended === 0;
 
     for (const group of groups) {
-      const groupCards = ordinaryCards.filter(card =>
+      const groupCards = allToolCards.filter(card =>
         categoryOf(card) === group.dataset.categoryGroup);
       const groupVisible = groupCards.filter(card => !card.hidden).length;
       group.hidden = nameSorted || groupVisible === 0;
@@ -90,7 +94,7 @@ if (search) {
     }
     if (otherTools) otherTools.hidden = false;
     if (nameGrid) nameGrid.hidden = !nameSorted || visibleOther === 0;
-    if (empty) empty.hidden = visibleCards.length !== 0;
+    if (empty) empty.hidden = visibleOther !== 0;
     if (otherEmpty) otherEmpty.hidden = visibleOther !== 0 || visibleRecommended === 0;
   }
   search.addEventListener('input', filter);

@@ -160,15 +160,23 @@ def catalog(config, args, root):
         state = recommendation_state(pointer, prov, listing, bool(meta))
         category = categories[listing['category']] if listing else None
         classification = ''
+        featured_classification = ''
         if categories is not None:
             badge = ''
             if state == 'recommended':
                 badge = '<span class="recommendation recommended">Recommended</span>'
             elif state == 'needs-review':
                 badge = '<span class="recommendation needs-review">Recommendation needs review</span>'
-            classification = (
-                f'<div class="catalog-category"><span>'
-                f'Category: {html.escape(category["label"], quote=True) if category else "Not yet classified"}</span>{badge}</div>')
+            category_label = (
+                html.escape(category["label"], quote=True)
+                if category else "Not yet classified")
+            category_markup = (
+                f'<div class="catalog-category"><span>Category: {category_label}</span>')
+            classification = f'{category_markup}{badge}</div>'
+            featured_classification = (
+                f'{category_markup}{"" if state == "recommended" else badge}</div>')
+        else:
+            featured_classification = classification
         tool_platforms = meta.get('platforms', [])
         if not isinstance(tool_platforms, list) or not all(isinstance(p,str) for p in tool_platforms):
             raise ValueError(f'{slug}: invalid platforms')
@@ -203,10 +211,20 @@ def catalog(config, args, root):
             f' data-recommended="{str(state == "recommended").lower()}"'
             f' data-name="{esc(display_name)}"'
             if categories is not None else '')
-        card = f'<article class="catalog-card" data-tool="{esc(slug)}" data-platforms="{esc(" ".join(tool_platforms))}" data-search="{search}"{category_attr}><h2>{esc(display_name)}</h2>{classification}<p>{esc(excerpt)}</p><div class="tool-meta">{tags}</div>{detail}<div class="card-links">{launch}{link(repo,"Repository")}{manifest_link}</div></article>'
+        card_start = (
+            f'<article class="catalog-card" data-tool="{esc(slug)}" '
+            f'data-platforms="{esc(" ".join(tool_platforms))}" '
+            f'data-search="{search}"{category_attr}><h2>{esc(display_name)}</h2>')
+        card_end = (
+            f'<p>{esc(excerpt)}</p><div class="tool-meta">{tags}</div>{detail}'
+            f'<div class="card-links">{launch}{link(repo,"Repository")}'
+            f'{manifest_link}</div></article>')
+        card = f'{card_start}{classification}{card_end}'
+        featured_card = f'{card_start}{featured_classification}{card_end}'
         entries.append((state != 'recommended', slug, card))
         catalog_entries.append((state == 'recommended', slug,
-                                listing['category'] if listing else '', card))
+                                listing['category'] if listing else '',
+                                card, featured_card))
     entries = [card for _, _, card in sorted(entries)]
     if categories is not None:
         return catalog_browsing_layout(entries, catalog_entries, platforms, categories, args)
@@ -267,12 +285,10 @@ def catalog_browsing_layout(entries, catalog_entries, platforms, categories, arg
 
     ordered = sorted(catalog_entries, key=lambda item: (not item[0], item[1]))
     recommended = [item for item in ordered if item[0]]
-    others = [item for item in ordered if not item[0]]
+    all_tools = ordered
     other_by_category = {identity: [] for identity in categories}
     unclassified = []
-    for is_recommended, slug, identity, card in ordered:
-        if is_recommended:
-            continue
+    for is_recommended, slug, identity, card, featured_card in ordered:
         if identity in other_by_category:
             other_by_category[identity].append(card)
         else:
@@ -321,8 +337,8 @@ def catalog_browsing_layout(entries, catalog_entries, platforms, categories, arg
         if recommended else '')
     return f'''<section class="hero catalog-hero"><p class="eyebrow">Amplifier Smart Tools / Catalog</p><h1>Find a tool.<br>Make something happen.</h1><p class="lede">Domain expertise you can put to work. Explore the tools, inspect their requirements, and bring the right one to your agent.</p><div class="actions">{link('#discovery','Get the skill','button primary')}{link(repo_url('catalog')+'#contributing','Add a tool','text-link')}</div></section>
     <section class="catalog-browser" aria-label="Browse smart tools"><div class="filters" id="catalog-filters" hidden><div class="search-field"><label for="tool-search">Search</label><input id="tool-search" type="search" placeholder="Search tools or categories" autocomplete="off"></div><div class="category-field"><label for="category">Category</label><select id="category">{category_options}</select></div><div><label for="platform">Platform</label><select id="platform"><option value="">All platforms</option>{platforms_html}</select></div><div class="sort-field"><label for="tool-sort">Sort by</label><select id="tool-sort"><option value="category">Category</option><option value="name">Name</option></select></div><button id="clear-filters" class="button clear-filters" type="button">Clear filters</button></div><p class="catalog-count" id="result-count" role="status">{all_count}</p><p class="empty-results" id="empty-results"{' hidden' if entries else ''}>No matching tools.</p><noscript><p class="no-script-note">All tools are listed below.</p></noscript>
-    <section class="recommendation-region" id="recommended-region" aria-labelledby="recommended-heading"{' hidden' if not recommended else ''}><div class="catalog-section-heading"><h2 id="recommended-heading">Recommended</h2><span class="catalog-count" id="recommended-count">{tool_count(len(recommended))}</span></div><div class="catalog-grid" id="recommended-tools">{''.join(item[3] for item in recommended)}</div></section>
-    <section class="other-tools-region" id="other-tools" aria-labelledby="other-tools-heading"><div class="catalog-section-heading"><h2 id="other-tools-heading">Tools</h2><span class="catalog-count" id="other-count">{tool_count(len(others))}</span></div>{tools_empty}<div id="other-tool-groups"><div class="catalog-grid" id="other-tools-by-name" hidden></div>{''.join(groups)}</div></section>
+    <section class="recommendation-region" id="recommended-region" aria-labelledby="recommended-heading"{' hidden' if not recommended else ''}><div class="catalog-section-heading"><h2 id="recommended-heading">Recommended</h2><span class="catalog-count" id="recommended-count">{tool_count(len(recommended))}</span></div><div class="catalog-grid" id="recommended-tools">{''.join(item[4] for item in recommended)}</div></section>
+    <section class="other-tools-region" id="other-tools" aria-labelledby="other-tools-heading"><div class="catalog-section-heading"><h2 id="other-tools-heading">All tools</h2><span class="catalog-count" id="other-count">{tool_count(len(all_tools))}</span></div>{tools_empty}<div id="other-tool-groups"><div class="catalog-grid" id="other-tools-by-name" hidden></div>{''.join(groups)}</div></section>
     <p class="catalog-note">Descriptions and declared platforms come from the tools' own manifest snapshots. A listing does not establish installation or usability in your environment. Expand an entry to inspect its source revision and refresh time.</p></section>
     <section class="section two-col" id="discovery"><div><p class="eyebrow">Let your agent help</p><h2>One skill.<br>The whole catalog.</h2><p style="margin-top:24px">Ask your agent to find a Smart Tool for your task. It can inspect the manifest, check the local environment, and follow the selected tool's own guidance.</p></div><div class="callout"><h3>Install the skill.</h3>{code_box(SKILL_INSTALL,'Terminal','install')}<p class="note">This installs guidance for your agent, not the tools or their credentials.</p>{link(repo_url('overview')+SKILL_PATH,'Read the skill','text-link')}</div></section>'''
 

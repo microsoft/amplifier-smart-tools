@@ -111,15 +111,18 @@ not renew the designation. Recommended is a plain, noninteractive badge. Source 
 and refresh details remain in the existing optional “Full description and source”
 disclosure; the badge does not expand or link to recommendation-specific copy.
 
-The catalog places Recommended above Tools. The Recommended region is hidden whenever
-there are no matching effective recommendations, including the initial server-rendered
-page when none are effective. It has no empty-state placeholder. Ordinary tools remain
-grouped by category by default or can be shown in one global alphabetical Name list.
-Recommended cards stay separate and ordinary cards are not cloned.
+The catalog places Recommended above All tools. Each effective recommendation appears
+once in Recommended as a shortcut and once in All tools as part of the complete catalog;
+the two regions contain 24 card instances for 22 unique source listings. The All tools
+count and global result count are based on those 22 unique listings, not the rendered
+card total. The Recommended region is hidden whenever no matching effective
+recommendations exist, including on the initial server-rendered page, and has no
+empty-state placeholder. All tools are grouped by category by default or can be shown
+in one global alphabetical Name list.
 
 One control bar sits above all results: Search, Category, Platform, Sort by (Category or
-Name), and one Clear filters action. Search, category, and platform filter both regions;
-sorting changes only Tools, and clearing filters preserves the selected sort. Category
+Name), and one Clear filters action. Search, category, and platform filter both copies;
+sorting changes only All tools, and clearing filters preserves the selected sort. Category
 scopes remain registry metadata and are not inserted into the control bar or displayed
 when a category is selected. “Not yet classified” appears only when at least one current
 entry is unclassified. Native select controls keep their dimensions as values change. At
@@ -127,16 +130,17 @@ phone widths, Search spans the bar, Category and Platform share a two-column row
 by and Clear filters share the next row. Category labels remain visible on every card and
 searchable with displayed tool names.
 
-The all-results count is a live status; Recommended and Tools have separate counts. If
-Recommended matches exist but no Tools do, Tools shows “No tools match these filters.”
-When there are no matching tools at all, one global empty message replaces section-specific
-empty messages. Without JavaScript, the filter bar and Name list stay hidden, all
-server-rendered cards remain visible, and a zero-card Recommended region is hidden. Ordinary
-category group headings are noninteractive, with no second category-navigation area.
+The all-results count is a live status for unique All tools listings; Recommended and All
+tools have separate counts. When no listing matches, one global empty message replaces
+section-specific empty messages. Without JavaScript, the filter bar and Name list stay
+hidden, all 22 unique listings remain visible in All tools along with the two featured
+shortcuts, and a zero-card Recommended region is hidden. Ordinary category group headings
+are noninteractive, with no second category-navigation area.
 
-With a category registry, every card names its category. Effective recommendations use a
-“Recommended” badge and stale designations use “Recommendation needs review”; ordinary
-cards have no recommendation-status badge. Cards without a listing show “Category: Not yet
+With a category registry, every card names its category. Recommended shortcuts use the
+section heading instead of a redundant “Recommended” badge; their All tools copies show
+that badge. Stale designations retain “Recommendation needs review”; ordinary cards have
+no recommendation-status badge. Cards without a listing show “Category: Not yet
 classified.” A legacy catalog without a registry keeps its existing card markup.
 
 Tool creators do not nominate or select entries; catalog maintainers make those
