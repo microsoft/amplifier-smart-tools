@@ -84,11 +84,8 @@ navigation identity; the catalog's tool inventory remains `tools/*/source.json`.
 The canonical renderer supports optional catalog-owned `categories.json` and
 `tools/<slug>/listing.json`, without changing the Smart Tool manifest or source-pointer
 format. The registry is `{"categories":[{"id":"stable-id","label":"Display name","scope":"Kind of work covered."}]}`.
-A listing has a known primary `category` and an explicit boolean `recommended`.
-Ordinary classified entries use `false` and omit `reviewed_source`; a true designation
-records the reviewed `repository`, distribution `path`, and full source `commit`.
-Entries without a listing remain available and unclassified. Without a registry, the
-renderer keeps legacy output and does not add category or recommendation controls.
+A maintainer-owned listing requires a known primary `category`; the ordinary form is `{"category": "approved-id"}`. Optional `recommended` defaults to false in a normalized copy in memory, never by mutating input or rewriting files. A provided flag must be a strict boolean. False or omission prohibits `reviewed_source`; a true designation records the selected `repository`, distribution `path`, and full source `commit`.
+Entries without a listing automatically appear under Other and remain searchable by Name and Category. Other is a built-in fallback grouping, not a registry category. Without a registry, the renderer keeps legacy output and does not add category or recommendation controls.
 
 `site/theme/catalog_metadata.py` provides the shared validators for the renderer and
 catalog CI: `load_catalog_metadata(root)` returns optional categories and validated
@@ -124,8 +121,8 @@ One control bar sits above all results: Search, Category, Platform, Sort by (Cat
 Name), and one Clear filters action. Search, category, and platform filter both copies;
 sorting changes only All tools, and clearing filters preserves the selected sort. Category
 scopes remain registry metadata and are not inserted into the control bar or displayed
-when a category is selected. “Not yet classified” appears only when at least one current
-entry is unclassified. Native select controls keep their dimensions as values change. At
+when a category is selected. The Other option and group appear only when at least one current
+entry lacks classification. Native select controls keep their dimensions as values change. At
 phone widths, Search spans the bar, Category and Platform share a two-column row, and Sort
 by and Clear filters share the next row. Category labels remain visible on every card and
 searchable with displayed tool names.
@@ -140,12 +137,10 @@ are noninteractive, with no second category-navigation area.
 With a category registry, every card names its category. Recommended shortcuts use the
 section heading instead of a redundant “Recommended” badge; their All tools copies show
 that badge. Stale designations retain “Recommendation needs review”; ordinary cards have
-no recommendation-status badge. Cards without a listing show “Category: Not yet
-classified.” A legacy catalog without a registry keeps its existing card markup.
+no recommendation-status badge. Cards without a listing show “Category: Other.” Even without snapshots or JavaScript, these entries remain readable. A legacy catalog without a registry keeps its existing card markup.
 
 Tool creators do not nominate or select entries; catalog maintainers make those
-decisions. Creators may submit a source pointer and optional ordinary category with
-`recommended: false` and no reviewed source.
+decisions. Submissions are source-only and category-agnostic: submitters do not add, choose, or create categories or recommendations and need not know category definitions. Maintainers assign classification from the approved registry in separate metadata, never upstream manifests or source pointers. Category additions, label changes, and scope changes require their separate review and approval.
 
 ### Maintainer recommendation review
 

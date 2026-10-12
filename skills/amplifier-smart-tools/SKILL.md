@@ -38,7 +38,10 @@ not assume a host API, command, or permission is available.
    [shared catalog metadata contract](https://github.com/microsoft/amplifier-smart-tools/blob/main/site/theme/catalog_metadata.py):
    reject duplicate JSON keys and unknown registry/listing keys or category IDs; fail
    closed if a category has more than one recommended listing. Missing listings remain
-   discoverable as unclassified. Require each source pointer's credential-free HTTPS
+   discoverable under Other, a built-in fallback rather than a registry category.
+   An omitted recommendation flag means not recommended; a provided flag must be
+   boolean, and only a true designation carries selected source identity.
+   Require each source pointer's credential-free HTTPS
    `repository`, `ref` (default `main`), and `path` (default `.`) to exactly match
    provenance. Require a full provenance commit SHA, safe repository-relative
    `original_manifest_path`, and `last_success` timestamp. If `ref` is a full SHA, it
@@ -163,12 +166,17 @@ Choose one of these two paths, based on the task and available authorized tools:
 
 ## Add to the catalog
 
-1. Add `tools/<slug>/source.json` with a credential-free HTTPS `repository` URL.
+1. Build and check the tool through one of the Create paths above.
+2. Add `tools/<slug>/source.json` with a credential-free HTTPS `repository` URL.
    Optional `ref` selects a branch, tag, or full commit and defaults to `main`; optional
    `path` selects the distribution root containing `smart-tool.json` and defaults to
    `.`. Do not hand-copy `SMART_TOOL.md` or `provenance.json`; the catalog refresh action
    generates those snapshots.
-2. An optional `tools/<slug>/listing.json` may provide ordinary classification in an
-   existing primary `category`, with `recommended: false` and no `reviewed_source`.
-3. Submit a pull request to the catalog with the source pointer and optional listing,
+3. Submit a pull request to the catalog with only the source pointer,
    following the [catalog README contribution instructions](https://github.com/microsoft/amplifier-smart-tools-catalog#contributing).
+
+Submissions are category-agnostic: submitters do not add, choose, or create categories
+or recommendations and do not need to know category definitions. Catalog maintainers
+assign classification from the approved registry; category additions, label changes,
+and scope changes require their separate approval. Tools without classification
+automatically appear under Other and remain searchable by name and category.

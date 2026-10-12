@@ -153,7 +153,7 @@ def validate_categories(data):
 
 
 def validate_listing(data, categories):
-    closed(data, ('category', 'recommended'), ('reviewed_source',))
+    closed(data, ('category',), ('recommended', 'reviewed_source'))
     try:
         category = identifier(data['category'])
     except ValueError as exc:
@@ -161,16 +161,18 @@ def validate_listing(data, categories):
     if category not in categories:
         raise ValueError(
             f'category: Unknown category {category!r}; known ids: {sorted(categories)!r}')
-    if type(data['recommended']) is not bool:
-        raise ValueError('recommended must be an explicit boolean')
-    if data['recommended']:
+    recommended = data.get('recommended', False)
+    if type(recommended) is not bool:
+        raise ValueError('recommended must be a boolean when provided')
+    if recommended:
         reviewed = closed(data.get('reviewed_source'), ('repository', 'path', 'commit'))
         repository(reviewed['repository'])
         relative_path(reviewed['path'])
         commit(reviewed['commit'])
     elif 'reviewed_source' in data:
         raise ValueError('An ordinary listing must not carry reviewed_source')
-    return data
+    # Normalize in memory only; never add defaults to the caller's editorial data.
+    return dict(data, recommended=recommended)
 
 
 def catalog_sources(root):
@@ -230,7 +232,7 @@ def recommendation_state(pointer, provenance, listing, snapshot_present=True):
 
     A stale designation remains occupied, but loses its badge and preference.
     """
-    if not listing or not listing['recommended']:
+    if not listing or not listing.get('recommended', False):
         return 'ordinary'
     if not snapshot_present or not provenance:
         return 'needs-review'

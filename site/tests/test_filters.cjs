@@ -58,12 +58,12 @@ function catalog({
   ] : zeroRecommendations ? [
     card({ tool: 'classified-alpha', name: 'Classified Alpha', search: 'research linux', platforms: 'linux', category: 'testing', recommended: 'false' }),
     card({ tool: 'classified-beta', name: 'Classified Beta', search: 'research macos', platforms: 'macos', category: 'testing', recommended: 'false' }),
-    card({ tool: 'unclassified', name: 'Unclassified', search: 'research windows', platforms: 'windows', category: '', recommended: 'false' }),
+    card({ tool: 'unclassified', name: 'Unclassified', search: 'unclassified research windows other', platforms: 'windows', category: '', recommended: 'false' }),
   ] : [
     card({ tool: 'recommended', name: 'Recommended', search: 'isolated failure linux macos test environments', platforms: 'linux macos', category: 'testing', recommended: 'true' }),
     card({ tool: 'alternative', name: 'Alternative', search: 'isolated failure linux test environments', platforms: 'linux', category: 'testing', recommended: 'false' }),
     card({ tool: 'authoring', name: '', search: 'echo create tool macos tool authoring', platforms: 'macos', category: 'authoring', recommended: 'false' }, 'Echo'),
-    card({ tool: 'legacy', name: 'Able', search: 'failure video windows not yet classified', platforms: 'windows', category: '', recommended: 'false' }),
+    card({ tool: 'legacy', name: 'Able', search: 'able failure video windows other', platforms: 'windows', category: '', recommended: 'false' }),
     ...(twoRecommendations ? [
       card({ tool: 'recommended-two', name: 'Another Recommended', search: 'create tool macos', platforms: 'macos', category: 'authoring', recommended: 'true' }),
     ] : []),
@@ -324,6 +324,29 @@ test('category and shared filters keep unclassified tools discoverable', () => {
   view.set('platform', 'linux', 'change');
   assert.deepEqual(view.visible(), []);
   assert.equal(view.group('__unclassified__').hidden, true);
+});
+
+test('Other search and filter preserve Name sorting and unique counts without recommendations', () => {
+  const view = catalog({ zeroRecommendations: true });
+  view.set('tool-search', 'OtHeR', 'input');
+  assert.deepEqual(view.visible(), ['unclassified']);
+  assert.equal(view.ids['result-count'].textContent, '1 tool');
+  assert.equal(view.ids['other-count'].textContent, '1 tool');
+  assert.equal(view.ids['recommended-count'].textContent, '0 tools');
+  assert.equal(view.ids['recommended-region'].hidden, true);
+  assert.deepEqual(view.visibleFeatured(), []);
+  view.set('category', '__unclassified__', 'change');
+  view.set('tool-sort', 'name', 'change');
+  assert.equal(view.group('__unclassified__').hidden, true);
+  assert.equal(view.nameGrid.hidden, false);
+  assert.deepEqual(view.visible(), ['unclassified']);
+  view.set('tool-search', 'Unclassified', 'input');
+  assert.deepEqual(view.visible(), ['unclassified']);
+  view.set('tool-sort', 'category', 'change');
+  assert.equal(view.group('__unclassified__').hidden, false);
+  assert.equal(view.group('__unclassified__').querySelector('.group-count').textContent, '1 tool');
+  view.ids['clear-filters'].dispatch('click');
+  assert.equal(view.ids['result-count'].textContent, '3 tools');
 });
 
 test('search includes category labels and the displayed tool name', () => {

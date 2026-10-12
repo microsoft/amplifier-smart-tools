@@ -141,7 +141,7 @@ def test_legacy_has_no_category_ui_and_preserves_slug_order(tmp_path):
 def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     registry(tmp_path)
     entry(tmp_path, 'alpha')
-    entry(tmp_path, 'alternative', {'category': 'testing', 'recommended': False})
+    entry(tmp_path, 'alternative', {'category': 'testing'})
     entry(tmp_path, 'zulu', LISTING)
     result = render(tmp_path)
     layout = CatalogLayout(result)
@@ -155,7 +155,7 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     assert 'Category: Test environments' in by_slug['zulu']
     assert 'Recommended' in by_slug['zulu']
     assert 'Category: Test environments' in by_slug['alternative']
-    assert 'Category: Not yet classified' in by_slug['alpha']
+    assert 'Category: Other' in by_slug['alpha']
     assert 'Not currently recommended' not in result
 
     placements = [(attrs['data-tool'], region) for attrs, region in layout.cards]
@@ -195,7 +195,7 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     assert '<select id="category">' in result
     assert '<option value="">All categories</option>' in result
     assert '<option value="testing">Test environments</option>' in result
-    assert '<option value="__unclassified__">Not yet classified</option>' in result
+    assert '<option value="__unclassified__">Other</option>' in result
     for removed in ('category-scope', 'aria-describedby', 'data-scope',
                     'Create isolated test environments.', 'filter-scope',
                     'Other tools', 'Other tool order', 'recommendation-context',
@@ -260,7 +260,7 @@ def test_zero_recommendations_keep_classified_and_unclassified_tools_visible(tmp
     assert all('hidden' not in card for card in cards)
     assert result.count('class="recommendation recommended"') == 0
     assert all('Category: Test environments' in card['text'] for card in cards[:2])
-    assert 'Category: Not yet classified' in cards[2]['text']
+    assert 'Category: Other' in cards[2]['text']
     assert 'Not currently recommended' not in result
     assert {attrs['data-tool']: region for attrs, region in layout.cards} == {
         'classified-alpha': 'category-group-testing',
@@ -329,7 +329,7 @@ def test_every_identity_mismatch_loses_preference(tmp_path, target, field, value
     assert 'Category: Test environments' in Cards(result).cards[0]['text']
     assert 'Recommendation needs review' in Cards(result).cards[0]['text']
     assert 'Not currently recommended' not in Cards(result).cards[0]['text']
-    assert 'Category: Not yet classified' in Cards(result).cards[1]['text']
+    assert 'Category: Other' in Cards(result).cards[1]['text']
     assert 'Not currently recommended' not in Cards(result).cards[1]['text']
 
 
@@ -411,14 +411,16 @@ def test_unreleased_domain_metadata_has_no_compatibility_alias(tmp_path):
 
 
 @pytest.mark.parametrize('data', [
-    None, [], {}, {'category': 'testing'}, {'recommended': False},
-    {'category': 'unknown', 'recommended': False},
+    None, [], {}, {'recommended': False},
+    {'category': 'unknown'},
     {'category': 'testing', 'recommended': 'true'},
     {'category': 'testing', 'recommended': 1},
+    {'category': 'testing', 'recommended': 0},
     {'category': 'testing', 'recommended': None},
     {'category': 'testing', 'recommended': True},
     dict(LISTING, extra=True),
     dict(LISTING, recommended=False),
+    {'category': 'testing', 'reviewed_source': LISTING['reviewed_source']},
     dict(LISTING, reviewed_source=dict(LISTING['reviewed_source'], ref='main')),
     dict(LISTING, reviewed_source=dict(LISTING['reviewed_source'], commit='a'*39)),
     dict(LISTING, reviewed_source=dict(LISTING['reviewed_source'], commit='a'*41)),
@@ -430,9 +432,70 @@ def test_invalid_listing(data):
         metadata.validate_listing(data, {'testing': CATEGORY})
 
 
+@pytest.mark.parametrize('flag', [None, False, True])
+def test_listing_normalizes_a_copy_without_mutating_input(flag):
+    data = copy.deepcopy(LISTING) if flag is True else {'category': 'testing'}
+    if flag is False:
+        data['recommended'] = False
+    before = copy.deepcopy(data)
+    normalized = metadata.validate_listing(data, {'testing': CATEGORY})
+    assert normalized == dict(before, recommended=flag is True)
+    assert normalized is not data
+    assert data == before
+    if flag is not True:
+        assert metadata.recommendation_state(POINTER, PROVENANCE, data) == 'ordinary'
+
+
+def test_omitted_flag_does_not_occupy_slot_or_rewrite_files(tmp_path):
+    registry(tmp_path)
+    directory = entry(tmp_path, 'ordinary', {'category': 'testing'})
+    entry(tmp_path, 'explicit-false', {'category': 'testing', 'recommended': False})
+    entry(tmp_path, 'selected', LISTING)
+    paths = [tmp_path/'categories.json', *directory.iterdir()]
+    before = {path: path.read_bytes() for path in paths}
+    _, listings = metadata.load_catalog_metadata(tmp_path)
+    assert listings['ordinary'] == {'category': 'testing', 'recommended': False}
+    assert sum(listing['recommended'] for listing in listings.values()) == 1
+    render(tmp_path)
+    assert all(path.read_bytes() == raw for path, raw in before.items())
+
+
+@pytest.mark.parametrize('snapshot', [False, True])
+def test_source_only_entries_render_searchable_other_without_badges(tmp_path, snapshot):
+    registry(tmp_path)
+    directory = entry(tmp_path, 'source-only-fixture', snapshot=snapshot)
+    before = {path: path.read_bytes() for path in directory.iterdir()}
+    result = render(tmp_path)
+    cards = Cards(result).cards
+    assert len(cards) == 1
+    card = cards[0]
+    assert card['data-tool'] == 'source-only-fixture'
+    assert card['data-category'] == ''
+    assert card['data-recommended'] == 'false'
+    assert card['data-name'] == 'Source Only Fixture'
+    assert 'other' in card['data-search']
+    assert 'source only fixture' in card['data-search']
+    assert 'Category: Other' in card['text']
+    assert card['badges'] == []
+    assert 'hidden' not in card
+    layout = CatalogLayout(result)
+    assert layout.cards[0][1] == 'category-group-unclassified'
+    assert 'hidden' not in layout.sections['category-group-unclassified']
+    assert 'hidden' in layout.sections['recommended-region']
+    assert '<option value="__unclassified__">Other</option>' in result
+    assert '<h3 id="category-heading-unclassified"><span>Other</span>' in result
+    assert 'id="category-group-count-unclassified">1 tool</span>' in result
+    assert result.count('id="catalog-filters"') == 1
+    assert 'Not yet classified' not in result
+    assert ('No manifest snapshot is available yet.' in card['text']) is not snapshot
+    assert metadata.load_catalog_metadata(tmp_path) == ({'testing': CATEGORY}, {})
+    assert not (directory/'listing.json').exists()
+    assert all(path.read_bytes() == raw for path, raw in before.items())
+
+
 def test_unknown_category_error_has_relative_path_field_value_and_choices(tmp_path):
     registry(tmp_path, [CATEGORY, dict(CATEGORY, id='authoring')])
-    entry(tmp_path, 'tool', {'category': 'unknown', 'recommended': False})
+    entry(tmp_path, 'tool', {'category': 'unknown'})
     with pytest.raises(ValueError) as error:
         metadata.load_catalog_metadata(tmp_path)
     assert str(error.value) == (
@@ -474,7 +537,7 @@ def test_empty_registry_is_valid_and_shows_unclassified(tmp_path):
     registry(tmp_path, [])
     entry(tmp_path, 'tool')
     result = render(tmp_path)
-    assert 'Category: Not yet classified' in result
+    assert 'Category: Other' in result
     assert 'Not currently recommended' not in result
 
 
@@ -704,7 +767,12 @@ def test_overview_and_spec_reader_build_without_catalog_metadata(tmp_path):
 @pytest.mark.parametrize('relative', ['skills/amplifier-smart-tools/SKILL.md', 'site/README.md'])
 def test_recommendation_guidance_separates_creator_and_maintainer_roles(relative):
     guidance = ' '.join((SITE.parent/relative).read_text().split())
-    assert 'recommended: false' in guidance
+    assert 'Submissions are' in guidance
+    assert 'category-agnostic' in guidance
+    assert 'submitters do not add, choose, or create categories or recommendations' in guidance
+    assert 'approved registry' in guidance
+    assert 'Other' in guidance
+    assert 'recommended: false' not in guidance
     assert 'creators do not nominate or select entries; catalog maintainers make those decisions.' in guidance
     assert 'catalog maintainers selected this tool as a preferred starting point' in guidance
     assert 'claim that specification conformance or task outcomes were checked' in guidance
@@ -760,14 +828,21 @@ def test_skill_creation_and_catalog_paths_are_scoped():
     add_to_catalog = skill.split('## Add to the catalog\n', 1)[1]
     add_text = ' '.join(add_to_catalog.split())
     assert all(add_to_catalog.count(f'\n{number}.') == 1 for number in (1, 2, 3))
-    assert 'ordinary classification' in add_text
-    assert 'recommended: false' in add_text
-    assert 'no `reviewed_source`' in add_text
+    assert 'Build and check the tool through one of the Create paths above.' in add_text
+    assert 'only the source pointer' in add_text
+    assert 'Submissions are category-agnostic' in add_text
+    assert 'Catalog maintainers assign classification from the approved registry' in add_text
+    assert 'submitters do not add, choose, or create categories or recommendations' in add_text
+    for forbidden in ('listing.json', 'recommended:', 'reviewed_source', 'optional listing'):
+        assert forbidden not in add_text
     assert 'catalog refresh action generates those snapshots' in add_text
     assert 'Submit a pull request' in add_text
     assert '[catalog README contribution instructions](https://github.com/microsoft/amplifier-smart-tools-catalog#contributing)' in add_text
     assert 'request a recommendation' not in add_text
-    assert 'maintainer' not in add_text.casefold()
+    assert 'recommended: false' not in skill
+    assert 'full commit' in add_text
+    assert 'defaults to `main`' in add_text
+    assert 'defaults to `.`' in add_text
 
 
 def test_catalog_maintainer_procedure_references_canonical_guide():

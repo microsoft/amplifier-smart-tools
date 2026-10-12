@@ -169,7 +169,7 @@ def catalog(config, args, root):
                 badge = '<span class="recommendation needs-review">Recommendation needs review</span>'
             category_label = (
                 html.escape(category["label"], quote=True)
-                if category else "Not yet classified")
+                if category else "Other")
             category_markup = (
                 f'<div class="catalog-category"><span>Category: {category_label}</span>')
             classification = f'{category_markup}{badge}</div>'
@@ -201,7 +201,7 @@ def catalog(config, args, root):
         launch = link(page_url(showcase,args),'Explore tool') if showcase else ''
         search_values = [str(name), description, *use_cases, *tool_platforms]
         if categories is not None:
-            category_label = category['label'] if category else 'Not yet classified'
+            category_label = category['label'] if category else 'Other'
             search_values = [str(name), display_name, description, *use_cases,
                              *tool_platforms, category_label]
         search = esc(' '.join(search_values).lower())
@@ -239,7 +239,7 @@ def catalog(config, args, root):
             '<div class="category-field"><label for="category">Primary category</label>'
             '<select id="category">'
             f'<option value="">All categories</option>{category_options}'
-            '<option value="__unclassified__">Not yet classified</option></select></div>')
+            '<option value="__unclassified__">Other</option></select></div>')
         scopes = ''.join(
             f'<dt>{html.escape(category["label"], quote=True)}</dt>'
             f'<dd>{html.escape(category["scope"], quote=True)}</dd>'
@@ -306,7 +306,7 @@ def catalog_browsing_layout(entries, catalog_entries, platforms, categories, arg
     if unclassified:
         category_options += (
             '<option value="__unclassified__">'
-            'Not yet classified</option>')
+            'Other</option>')
 
     groups = []
     for identity, category in sorted(categories.items(),
@@ -326,7 +326,7 @@ def catalog_browsing_layout(entries, catalog_entries, platforms, categories, arg
         groups.append(
             '<section class="catalog-group" id="category-group-unclassified" '
             'data-category-group="__unclassified__" aria-labelledby="category-heading-unclassified">'
-            '<h3 id="category-heading-unclassified"><span>Not yet classified</span>'
+            '<h3 id="category-heading-unclassified"><span>Other</span>'
             f'<span class="group-count" id="category-group-count-unclassified">{tool_count(len(unclassified))}'
             f'</span></h3><div class="catalog-grid">{"".join(unclassified)}</div></section>')
 
