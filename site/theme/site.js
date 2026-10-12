@@ -20,13 +20,10 @@ const search = document.getElementById('tool-search');
 if (search) {
   const platform = document.getElementById('platform');
   const category = document.getElementById('category');
-  const recommendedOnly = document.getElementById('recommended-only');
+  const categoryScope = document.getElementById('category-scope');
   const toolSort = document.getElementById('tool-sort');
   const filters = document.getElementById('catalog-filters');
-  const categoryNavigation = document.getElementById('category-navigation');
-  const categoryButtons = [...document.querySelectorAll('[data-category-filter]')];
   const cards = [...document.querySelectorAll('[data-tool]')];
-  const recommendedCards = cards.filter(card => card.dataset.recommended === 'true');
   const ordinaryCards = cards.filter(card => card.dataset.recommended !== 'true');
   const originalParents = new Map(ordinaryCards.map(card => [card, card.parentElement]));
   const groups = [...document.querySelectorAll('[data-category-group]')];
@@ -35,10 +32,9 @@ if (search) {
   const recommendedCount = document.getElementById('recommended-count');
   const otherCount = document.getElementById('other-count');
   const otherTools = document.getElementById('other-tools');
+  const otherEmpty = document.getElementById('other-empty');
   const empty = document.getElementById('empty-results');
-  const noRecommendations = document.getElementById('no-recommended');
   const recommendedEmpty = document.getElementById('recommended-empty');
-  const showAllTools = document.getElementById('show-all-tools');
   const clearFilters = document.getElementById('clear-filters');
   const plural = total => `${total} ${total === 1 ? 'tool' : 'tools'}`;
   function categoryOf(card) {
@@ -68,11 +64,16 @@ if (search) {
   function matchesBase(card) {
     const words = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
     return words.every(word => card.dataset.search.includes(word)) &&
-      (!platform.value || card.dataset.platforms.split(' ').includes(platform.value)) &&
-      (!recommendedOnly || !recommendedOnly.checked || card.dataset.recommended === 'true');
+      (!platform.value || card.dataset.platforms.split(' ').includes(platform.value));
   }
   function filter() {
     const nameSorted = applySort();
+    if (categoryScope && category) {
+      const selected = category.options[category.selectedIndex];
+      const selectedScope = category.value ? selected?.dataset.scope || '' : '';
+      categoryScope.textContent = selectedScope;
+      categoryScope.hidden = !selectedScope;
+    }
     const baseMatches = new Map(cards.map(card => [card, matchesBase(card)]));
     const visibleCards = cards.filter(card => baseMatches.get(card) &&
       (!category || !category.value || categoryOf(card) === category.value));
@@ -81,7 +82,6 @@ if (search) {
 
     const visibleRecommended = visibleCards.filter(card => card.dataset.recommended === 'true').length;
     const visibleOther = visibleCards.length - visibleRecommended;
-    const recommendedOnlyActive = Boolean(recommendedOnly && recommendedOnly.checked);
     count.textContent = plural(visibleCards.length);
     if (recommendedCount) recommendedCount.textContent = plural(visibleRecommended);
     if (otherCount) otherCount.textContent = plural(visibleOther);
@@ -94,58 +94,22 @@ if (search) {
       const groupCount = group.querySelector('.group-count');
       if (groupCount) groupCount.textContent = plural(groupVisible);
     }
-    if (otherTools) otherTools.hidden = visibleOther === 0 || recommendedOnlyActive;
-    if (nameGrid) nameGrid.hidden = !nameSorted || visibleOther === 0 || recommendedOnlyActive;
-    if (empty) empty.hidden = visibleCards.length !== 0 || recommendedOnlyActive;
-
-    if (noRecommendations) {
-      noRecommendations.hidden = recommendedCards.length !== 0;
-      noRecommendations.textContent = recommendedOnlyActive
-        ? 'No tools are currently designated Recommended. Turn off Recommended only or show all matching tools below.'
-        : 'No tools are currently designated Recommended. Browse all tools below.';
-    }
-    if (recommendedEmpty) {
-      recommendedEmpty.hidden = recommendedCards.length === 0 || visibleRecommended !== 0;
-    }
-    if (showAllTools) {
-      showAllTools.hidden = !recommendedOnlyActive || visibleRecommended !== 0;
-    }
-    for (const button of categoryButtons) {
-      const identity = button.dataset.categoryFilter;
-      const categoryCount = cards.filter(card => baseMatches.get(card) &&
-        (!identity || categoryOf(card) === identity)).length;
-      const countNode = button.querySelector('.category-tile-count');
-      if (countNode) countNode.textContent = plural(categoryCount);
-      button.setAttribute('aria-pressed', String(Boolean(category && category.value === identity)));
-    }
+    if (otherTools) otherTools.hidden = false;
+    if (nameGrid) nameGrid.hidden = !nameSorted || visibleOther === 0;
+    if (empty) empty.hidden = visibleCards.length !== 0;
+    if (recommendedEmpty) recommendedEmpty.hidden = visibleRecommended !== 0;
+    if (otherEmpty) otherEmpty.hidden = visibleOther !== 0;
   }
   search.addEventListener('input', filter);
   platform.addEventListener('change', filter);
   if (category) category.addEventListener('change', filter);
-  if (recommendedOnly) recommendedOnly.addEventListener('change', filter);
   if (toolSort) toolSort.addEventListener('change', filter);
-  for (const button of categoryButtons) {
-    button.addEventListener('click', () => {
-      if (!category) return;
-      category.value = button.dataset.categoryFilter;
-      filter();
-    });
-  }
-  if (showAllTools && recommendedOnly) {
-    showAllTools.addEventListener('click', () => {
-      recommendedOnly.checked = false;
-      filter();
-      recommendedOnly.focus();
-    });
-  }
   clearFilters.addEventListener('click', () => {
     search.value = ''; platform.value = '';
     if (category) category.value = '';
-    if (recommendedOnly) recommendedOnly.checked = false;
     filter(); search.focus();
   });
   if (filters) filters.hidden = false;
-  if (categoryNavigation) categoryNavigation.hidden = false;
   filter();
 }
 

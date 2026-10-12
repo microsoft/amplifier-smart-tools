@@ -10,6 +10,7 @@ const script = fs.readFileSync(path.join(__dirname, '../theme/site.js'), 'utf8')
 function element(dataset = {}) {
   return {
     dataset, value: '', checked: false, hidden: false, textContent: '', listeners: {},
+    options: [], selectedIndex: 0,
     parentElement: null,
     attributes: {}, children: [],
     addEventListener(event, callback) { this.listeners[event] = callback; },
@@ -50,10 +51,10 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
     card({ tool: 'classified-beta', name: 'Classified Beta', search: 'research macos', platforms: 'macos', category: 'testing', recommended: 'false' }),
     card({ tool: 'unclassified', name: 'Unclassified', search: 'research windows', platforms: 'windows', category: '', recommended: 'false' }),
   ] : [
-    card({ tool: 'recommended', name: 'Recommended', search: 'isolated failure linux macos', platforms: 'linux macos', category: 'testing', recommended: 'true' }),
-    card({ tool: 'alternative', name: 'echo', search: 'isolated failure linux', platforms: 'linux', category: 'testing', recommended: 'false' }),
-    card({ tool: 'authoring', name: '', search: 'create tool macos', platforms: 'macos', category: 'authoring', recommended: 'false' }, 'Echo'),
-    card({ tool: 'legacy', name: 'Able', search: 'failure video windows', platforms: 'windows', category: '', recommended: 'false' }),
+    card({ tool: 'recommended', name: 'Recommended', search: 'isolated failure linux macos test environments', platforms: 'linux macos', category: 'testing', recommended: 'true' }),
+    card({ tool: 'alternative', name: 'Alternative', search: 'isolated failure linux test environments', platforms: 'linux', category: 'testing', recommended: 'false' }),
+    card({ tool: 'authoring', name: '', search: 'echo create tool macos tool authoring', platforms: 'macos', category: 'authoring', recommended: 'false' }, 'Echo'),
+    card({ tool: 'legacy', name: 'Able', search: 'failure video windows not yet classified', platforms: 'windows', category: '', recommended: 'false' }),
     ...(twoRecommendations ? [
       card({ tool: 'recommended-two', name: 'Another Recommended', search: 'create tool macos', platforms: 'macos', category: 'authoring', recommended: 'true' }),
     ] : []),
@@ -61,15 +62,30 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
   const ids = Object.fromEntries([
     'tool-search', 'platform', 'result-count', 'empty-results', 'clear-filters',
     ...(legacy ? [] : [
-      'catalog-filters', 'category-navigation', 'category', 'tool-sort', 'other-tools-by-name',
-      'recommended-tools',
-      'recommended-only',
-      'recommended-count', 'other-count', 'other-tools', 'no-recommended',
-      'recommended-empty', 'show-all-tools',
+      'catalog-filters', 'category', 'category-scope', 'tool-sort', 'other-tools-by-name',
+      'recommended-tools', 'recommended-count', 'other-count', 'other-tools',
+      'recommended-empty', 'other-empty',
     ]),
   ].map(id => [id, element()]));
+  if (!legacy) {
+    const categorySelect = ids.category;
+    categorySelect.options = [
+      { value: '', dataset: { scope: '' } },
+      { value: 'authoring', dataset: { scope: 'Build and maintain smart tools.' } },
+      { value: 'testing', dataset: { scope: 'Create isolated test environments.' } },
+      { value: '__unclassified__', dataset: { scope: 'Tools without an assigned category.' } },
+    ];
+    Object.defineProperty(categorySelect, 'value', {
+      get() { return this._value || ''; },
+      set(value) {
+        this._value = value;
+        this.selectedIndex = Math.max(0, this.options.findIndex(option => option.value === value));
+      },
+    });
+    categorySelect.value = '';
+  }
   ids['empty-results'].hidden = true;
-  ids['clear-filters'].textContent = legacy ? 'Clear filters' : 'Clear all filters';
+  ids['clear-filters'].textContent = 'Clear filters';
   const recommendedGrid = ids['recommended-tools'];
   const nameGrid = ids['other-tools-by-name'];
   if (!legacy) {
@@ -81,11 +97,9 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
   const groupGrids = [];
   if (!legacy) {
     ids['catalog-filters'].hidden = true;
-    ids['category-navigation'].hidden = true;
     ids['other-tools'].hidden = false;
-    ids['no-recommended'].hidden = !zeroRecommendations;
     ids['recommended-empty'].hidden = true;
-    ids['show-all-tools'].hidden = true;
+    ids['other-empty'].hidden = true;
     for (const category of ['authoring', 'testing', '__unclassified__']) {
       const groupCards = cards.filter(card => card.dataset.recommended !== 'true' &&
         (card.dataset.category || '__unclassified__') === category);
@@ -105,21 +119,11 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
     }
   }
 
-  const categoryButtons = [];
-  if (!legacy) {
-    for (const identity of ['', 'authoring', 'testing']) {
-      const button = element({ categoryFilter: identity });
-      button.appendChild(counter('.category-tile-count'));
-      categoryButtons.push(button);
-    }
-  }
-
   const document = {
     getElementById(id) { return ids[id] || null; },
     querySelectorAll(selector) {
       if (selector === '[data-tool]') return cards;
       if (selector === '[data-category-group]') return groups;
-      if (selector === '[data-category-filter]') return categoryButtons;
       return [];
     },
   };
@@ -128,9 +132,8 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
     .filter(card => card.dataset.recommended !== 'true')
     .map(card => [card, card.parentElement]));
   return {
-    cards, ids, groups, groupGrids, categoryButtons, originalParents, recommendedGrid, nameGrid,
+    cards, ids, groups, groupGrids, originalParents, recommendedGrid, nameGrid,
     group(category) { return groups.find(group => group.dataset.categoryGroup === category); },
-    button(identity) { return categoryButtons.find(button => button.dataset.categoryFilter === identity); },
     visible() { return cards.filter(card => !card.hidden).map(card => card.dataset.tool); },
     placed() {
       return [
@@ -146,15 +149,17 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
 test('recommendations and ordinary tools start in separate visible regions with live totals', () => {
   const view = catalog();
   assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy']);
-  assert.equal(view.ids['recommended-only'].checked, false);
   assert.equal(view.ids['catalog-filters'].hidden, false);
-  assert.equal(view.ids['category-navigation'].hidden, false);
+  assert.equal(view.ids['category-scope'].textContent, '');
+  assert.equal(view.ids['category-scope'].hidden, true);
   assert.equal(view.ids['tool-sort'].value, 'category');
   assert.equal(view.nameGrid.hidden, true);
   assert.equal(view.ids['result-count'].textContent, '4 tools');
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
   assert.equal(view.ids['other-count'].textContent, '3 tools');
   assert.equal(view.ids['empty-results'].hidden, true);
+  assert.equal(view.ids['recommended-empty'].hidden, true);
+  assert.equal(view.ids['other-empty'].hidden, true);
   assert.deepEqual(view.groups.map(group => group.hidden), [false, false, false]);
 });
 
@@ -195,7 +200,7 @@ test('both Recommended cards stay in their own region above the globally sorted 
   assert.equal(new Set(view.placed()).size, view.cards.length);
 });
 
-test('changing sort preserves all four filters and their counts', () => {
+test('ordering changes only Other tools while shared filters retain their counts', () => {
   const view = catalog();
   view.set('tool-search', 'failure', 'input');
   view.set('platform', 'linux', 'change');
@@ -205,114 +210,85 @@ test('changing sort preserves all four filters and their counts', () => {
   assert.equal(view.ids['tool-search'].value, 'failure');
   assert.equal(view.ids.platform.value, 'linux');
   assert.equal(view.ids.category.value, 'testing');
-  assert.equal(view.ids['recommended-only'].checked, false);
+  assert.equal(view.ids['category-scope'].textContent, 'Create isolated test environments.');
+  assert.equal(view.ids['category-scope'].hidden, false);
   assert.deepEqual(view.visible(), ['recommended', 'alternative']);
   assert.equal(view.ids['result-count'].textContent, '2 tools');
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
   assert.equal(view.ids['other-count'].textContent, '1 tool');
   assert.equal(view.group('testing').querySelector('.group-count').textContent, '1 tool');
-  assert.equal(view.button('testing').attributes['aria-pressed'], 'true');
   assert.deepEqual(view.nameGrid.children.filter(card => !card.hidden).map(card => card.dataset.tool),
     ['alternative']);
-
-  view.ids['recommended-only'].checked = true;
-  view.ids['recommended-only'].dispatch('change');
-  assert.equal(view.ids['tool-sort'].value, 'name');
-  assert.deepEqual(view.visible(), ['recommended']);
-  assert.equal(view.ids['result-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '0 tools');
-  assert.equal(view.nameGrid.hidden, true);
-  view.ids['recommended-only'].checked = false;
-  view.ids['recommended-only'].dispatch('change');
-  assert.equal(view.ids['tool-sort'].value, 'name');
-  assert.deepEqual(view.visible(), ['recommended', 'alternative']);
-  assert.equal(view.nameGrid.hidden, false);
+  assert.equal(view.ids['recommended-empty'].hidden, true);
+  assert.equal(view.ids['other-empty'].hidden, true);
 });
 
-test('category tiles update the native select, aria-pressed, group counts, and group visibility', () => {
+test('category selection updates its scope helper and ordinary group counts', () => {
   const view = catalog();
-  const all = view.button('');
-  const testing = view.button('testing');
-  const authoring = view.button('authoring');
-  testing.dispatch('click');
+  view.set('category', 'testing', 'change');
   assert.equal(view.ids.category.value, 'testing');
-  assert.equal(testing.attributes['aria-pressed'], 'true');
-  assert.equal(all.attributes['aria-pressed'], 'false');
-  assert.equal(authoring.attributes['aria-pressed'], 'false');
+  assert.equal(view.ids['category-scope'].textContent, 'Create isolated test environments.');
+  assert.equal(view.ids['category-scope'].hidden, false);
   assert.deepEqual(view.visible(), ['recommended', 'alternative']);
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
   assert.equal(view.ids['other-count'].textContent, '1 tool');
   assert.equal(view.group('testing').querySelector('.group-count').textContent, '1 tool');
   assert.equal(view.group('authoring').hidden, true);
 
-  all.dispatch('click');
+  view.set('category', '', 'change');
   assert.equal(view.ids.category.value, '');
-  assert.equal(all.attributes['aria-pressed'], 'true');
+  assert.equal(view.ids['category-scope'].textContent, '');
+  assert.equal(view.ids['category-scope'].hidden, true);
   assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy']);
 });
 
-test('Recommended only combines with keyword, platform, and category using AND', () => {
+test('shared filters can leave either results section empty without hiding it', () => {
   const view = catalog();
-  view.ids['recommended-only'].checked = true;
-  view.ids['recommended-only'].dispatch('change');
-  assert.deepEqual(view.visible(), ['recommended']);
-  assert.equal(view.ids['result-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-tools'].hidden, true);
-
   view.set('category', 'testing', 'change');
   view.set('tool-search', '  ISOLATED   failure ', 'input');
   view.set('platform', 'macos', 'change');
   assert.deepEqual(view.visible(), ['recommended']);
+  assert.equal(view.ids['result-count'].textContent, '1 tool');
+  assert.equal(view.ids['recommended-count'].textContent, '1 tool');
+  assert.equal(view.ids['other-count'].textContent, '0 tools');
+  assert.equal(view.ids['recommended-empty'].hidden, true);
+  assert.equal(view.ids['other-empty'].hidden, false);
+  assert.equal(view.ids['other-tools'].hidden, false);
+
   view.set('category', 'authoring', 'change');
   assert.deepEqual(view.visible(), []);
   assert.equal(view.ids['result-count'].textContent, '0 tools');
-  assert.equal(view.ids['empty-results'].hidden, true);
-  assert.equal(view.ids['recommended-empty'].hidden, false);
-  assert.equal(view.ids['show-all-tools'].hidden, false);
-  assert.equal(view.ids['other-tools'].hidden, true);
-
-  view.ids['show-all-tools'].dispatch('click');
-  assert.equal(view.ids['recommended-only'].checked, false);
-  assert.equal(view.ids['recommended-only'].focused, true);
-  assert.deepEqual(view.visible(), []);
   assert.equal(view.ids['empty-results'].hidden, false);
-  assert.equal(view.ids['show-all-tools'].hidden, true);
+  assert.equal(view.ids['recommended-empty'].hidden, false);
+  assert.equal(view.ids['other-empty'].hidden, false);
+  assert.equal(view.ids['other-tools'].hidden, false);
 });
 
-test('zero recommendations are stated honestly and recovery reveals all tools', () => {
+test('zero recommendations retain their result header and show both section totals', () => {
   const view = catalog({ zeroRecommendations: true });
   assert.deepEqual(view.visible(), ['classified-alpha', 'classified-beta', 'unclassified']);
-  assert.equal(view.ids['no-recommended'].hidden, false);
-  assert.equal(view.ids['no-recommended'].textContent,
-    'No tools are currently designated Recommended. Browse all tools below.');
   assert.equal(view.ids['recommended-count'].textContent, '0 tools');
   assert.equal(view.ids['other-count'].textContent, '3 tools');
-  assert.equal(view.ids['recommended-only'].checked, false);
+  assert.equal(view.ids['recommended-empty'].hidden, false);
+  assert.equal(view.ids['other-empty'].hidden, true);
+  assert.equal(view.ids['other-tools'].hidden, false);
 
-  view.ids['recommended-only'].checked = true;
-  view.ids['recommended-only'].dispatch('change');
+  view.set('tool-search', 'not-present', 'input');
   assert.deepEqual(view.visible(), []);
   assert.equal(view.ids['result-count'].textContent, '0 tools');
-  assert.equal(view.ids['empty-results'].hidden, true);
-  assert.equal(view.ids['show-all-tools'].hidden, false);
-  assert.match(view.ids['no-recommended'].textContent, /Turn off Recommended only/);
-  assert.equal(view.ids['other-tools'].hidden, true);
-
-  view.ids['show-all-tools'].dispatch('click');
-  assert.equal(view.ids['recommended-only'].checked, false);
-  assert.equal(view.ids['recommended-only'].focused, true);
-  assert.deepEqual(view.visible(), ['classified-alpha', 'classified-beta', 'unclassified']);
   assert.equal(view.ids['recommended-count'].textContent, '0 tools');
-  assert.equal(view.ids['other-count'].textContent, '3 tools');
-  assert.equal(view.ids['no-recommended'].textContent,
-    'No tools are currently designated Recommended. Browse all tools below.');
-  assert.equal(view.ids['show-all-tools'].hidden, true);
+  assert.equal(view.ids['other-count'].textContent, '0 tools');
+  assert.equal(view.ids['empty-results'].hidden, false);
+  assert.equal(view.ids['recommended-empty'].hidden, false);
+  assert.equal(view.ids['other-empty'].hidden, false);
 });
 
 test('category and shared filters keep unclassified tools discoverable', () => {
   const view = catalog();
   view.set('category', '__unclassified__', 'change');
   assert.deepEqual(view.visible(), ['legacy']);
+  assert.equal(view.ids['category-scope'].textContent, 'Tools without an assigned category.');
+  assert.equal(view.ids['category-scope'].hidden, false);
   view.set('tool-search', 'failure', 'input');
   view.set('platform', 'windows', 'change');
   assert.deepEqual(view.visible(), ['legacy']);
@@ -323,22 +299,15 @@ test('category and shared filters keep unclassified tools discoverable', () => {
   assert.equal(view.group('__unclassified__').hidden, true);
 });
 
-test('tile counts respond to keyword, platform, and Recommended-only filters', () => {
+test('search includes category labels and the displayed tool name', () => {
   const view = catalog();
-  const all = view.button('');
-  const testing = view.button('testing');
-  const authoring = view.button('authoring');
-  view.set('tool-search', 'isolated', 'input');
-  assert.equal(all.querySelector('.category-tile-count').textContent, '2 tools');
-  assert.equal(testing.querySelector('.category-tile-count').textContent, '2 tools');
-  assert.equal(authoring.querySelector('.category-tile-count').textContent, '0 tools');
-  view.set('platform', 'macos', 'change');
-  assert.equal(all.querySelector('.category-tile-count').textContent, '1 tool');
-  view.ids['recommended-only'].checked = true;
-  view.ids['recommended-only'].dispatch('change');
-  assert.equal(testing.querySelector('.category-tile-count').textContent, '1 tool');
+  view.set('tool-search', 'TEST environments', 'input');
+  assert.deepEqual(view.visible(), ['recommended', 'alternative']);
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '0 tools');
+  assert.equal(view.ids['other-count'].textContent, '1 tool');
+  view.set('tool-search', 'eCho', 'input');
+  assert.deepEqual(view.visible(), ['authoring']);
+  assert.equal(view.ids['other-count'].textContent, '1 tool');
 });
 
 test('clear resets filters and returns focus to search', () => {
@@ -347,17 +316,15 @@ test('clear resets filters and returns focus to search', () => {
   view.set('category', 'testing', 'change');
   view.set('platform', 'windows', 'change');
   view.set('tool-search', 'no-such-term', 'input');
-  view.ids['recommended-only'].checked = true;
-  view.ids['recommended-only'].dispatch('change');
   view.ids['clear-filters'].dispatch('click');
   for (const id of ['tool-search', 'platform', 'category']) assert.equal(view.ids[id].value, '');
-  assert.equal(view.ids['recommended-only'].checked, false);
+  assert.equal(view.ids['category-scope'].textContent, '');
+  assert.equal(view.ids['category-scope'].hidden, true);
   assert.equal(view.ids['tool-sort'].value, 'name');
   assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy']);
   assert.equal(view.ids['empty-results'].hidden, true);
   assert.equal(view.ids['result-count'].textContent, '4 tools');
   assert.equal(view.ids['tool-search'].focused, true);
-  assert.equal(view.categoryButtons[0].attributes['aria-pressed'], 'true');
   assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
     ['legacy', 'alternative', 'authoring']);
   assert.deepEqual(view.groups.map(group => group.hidden), [true, true, true]);

@@ -110,24 +110,32 @@ limitations are stated only when recorded. A snapshot is point-in-time; refreshi
 not renew the designation. Each Recommended card keeps a keyboard-accessible revision
 disclosure.
 
-The catalog page has a distinct, always-visible Recommended region with its current
-count. When no tools are designated, it says “No tools are currently designated
-Recommended. Browse all tools below.” A missing designation means no current
-recommendation is recorded; it is not a negative quality judgment. The page-level “What does
-Recommended mean?” guide remains visible by default in the Recommended region
-and describes the review and its limits in two short paragraphs.
+The catalog keeps a distinct Recommended region above Other tools. Each heading and count
+remains visible when filters leave that section with zero matches. A short sentence says
+that recommendations are maintainer-selected starting points at recorded revisions, not
+quality certification. A compact, closed-by-default “What does Recommended mean?” details
+disclosure under that heading explains the selection and its limits; each Recommended
+badge links to it. Each card also keeps its keyboard-accessible source-revision disclosure.
+An empty Recommended section says “No Recommended tools match these filters.”
 
-Below it, “Browse by category” shows every registry category’s label, current count, and
-visible one-line scope. Ordinary tools appear once beneath visible category headings and
-counts; unclassified entries appear under “Not yet classified.” Recommended cards stay
-in their own region rather than being duplicated in those groups. With JavaScript, the
-native “Sort tools” select defaults to Category or switches ordinary tools to one global
-alphabetical Name grid; Recommended cards stay at the top and ordinary cards retain their
-category labels. Category buttons and the shared keyword, platform, category, and optional
-“Recommended only” filters combine with AND. Counts and empty states update as filters
-change, and clearing filters preserves the selected sort. Without JavaScript, sort
-controls remain hidden, the category groups stay intact, category links work, and all
-server-rendered cards remain usable.
+One control bar sits above both result sections. Search, category, and platform filter
+both sections; “Other tool order” changes only ordinary tools. The bar has one “Clear
+filters” action, and clearing filters preserves the selected order. Category scope appears
+as a short helper for the selected option rather than a wall of all category descriptions;
+it is hidden when “All categories” is selected. The “Not yet classified” option appears
+only when at least one current entry is unclassified. At phone widths, Search and Category
+occupy full rows, Platform and Other tool order share a row, and Clear filters remains at
+least 44px tall. Category labels remain visible on every card and searchable with displayed
+tool names.
+“Other tool order” defaults to category groups and can show ordinary tools in one global
+alphabetical Name list; Recommended cards remain separate and ordinary cards are not cloned.
+Counts use a live status for all matches and separate counts for both sections, including
+zero. Section-specific empty messages remain in place so users can see which section has no
+matches.
+
+Without JavaScript, the control bar and Name list stay hidden, while all server-rendered
+cards remain visible in their two sections and ordinary category groups. Category group
+headings are noninteractive, and there is no second category-navigation area.
 
 With a category registry, every card names its category and current recommendation state: “Category: {label}” with “Recommended,” “Recommendation needs review,” or “Not currently recommended.” Cards without a listing show “Category: Not yet classified” and “Not currently recommended.” A legacy catalog without a registry keeps its existing card markup.
 
@@ -141,13 +149,13 @@ The normative maintainer roles and designation, renewal, replacement, and withdr
 procedures live in the catalog's
 [maintainer curation guide](https://github.com/microsoft/amplifier-smart-tools-catalog/blob/main/docs/maintainers.md).
 
-The page supports fit-first selection, neutral unclassified state, and optional
-filter behavior. Recommended tools appear once in their own region. Other tools are
-grouped under visible category headings and counts, with unclassified tools under
-“Not yet classified,” or can be sorted globally by name. Keyword, declared platform,
-primary category, and the optional “Recommended only” checkbox combine with AND.
-Category tiles keep their labels, counts, and one-line scopes visible. All cards and
-category links remain usable without JavaScript.
+The page supports fit-first selection and a neutral unclassified state. Recommended
+tools appear once in their own region; other tools are grouped under category headings,
+with unclassified tools under “Not yet classified,” or sorted globally by name. A single
+control bar above both sections owns Search, category, and platform filters, plus ordering
+for Other tools. Its scope is explicit, one selected-category helper avoids a persistent
+nine-category text wall, and a single clear action resets filters without changing order.
+All cards remain usable without JavaScript.
 
 `site/sync_theme.py` copies the helper with the renderer, CSS, JavaScript, family registry, license, and shared motion assets. Review the synchronized diff and run a build in the target catalog before adoption; do not update only a vendored theme copy.
 

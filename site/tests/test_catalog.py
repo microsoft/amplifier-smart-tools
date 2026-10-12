@@ -164,46 +164,48 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     assert 'other-tools' in layout.sections
     assert 'category-group-testing' in layout.sections
     assert 'category-group-unclassified' in layout.sections
-    assert result.index('id="recommended-region"') < result.index('id="category-navigation-heading"')
-    assert result.index('id="category-navigation-heading"') < result.index('id="other-tools"')
+    assert result.index('id="catalog-filters"') < result.index('id="recommended-region"')
+    assert result.index('id="catalog-filters"') < result.index('id="other-tools"')
+    assert result.index('id="recommended-region"') < result.index('id="other-tools"')
+    assert '<h1>Smart Tools catalog</h1>' in result
+    assert 'Find a tool for the work you need to do.' in result
+    assert 'Browse by category' not in result
+    assert 'category-navigation' not in result
     assert '<span class="catalog-count" id="recommended-count">1 tool</span>' in result
     assert '<span class="catalog-count" id="other-count">2 tools</span>' in result
     assert 'id="category-group-count-testing">1 tool</span>' in result
     assert 'id="category-group-count-unclassified">1 tool</span>' in result
-    assert 'data-category-filter="testing"' in result
-    assert 'id="category-filter-count-testing">2 tools</span>' in result
+    assert '<select id="category" aria-describedby="category-scope">' in result
+    assert '<option value="" data-scope="">All categories</option>' in result
+    assert ('<option value="testing" data-scope="Create isolated test environments.">'
+            'Test environments</option>') in result
+    assert ('<option value="__unclassified__" data-scope="Tools without an assigned primary category.">'
+            'Not yet classified</option>') in result
+    assert '<p class="category-scope" id="category-scope" hidden></p>' in result
+    assert 'aria-describedby="category-scope"' in result
     assert 'Create isolated test environments.' in result
-    tile_start = result.index('data-category-filter="testing"')
-    tile_end = result.index('</button>', tile_start)
-    tile = result[tile_start:tile_end]
-    assert 'Create isolated test environments.' in tile
-    assert '<details' not in tile
-    assert 'aria-pressed="false"' in tile
-    assert ('<div id="recommended-filter" class="recommended-field">'
-            '<label for="recommended-only"><input id="recommended-only" '
-            'type="checkbox"> Recommended only</label></div>') in result
-    assert ('<div class="sort-field"><label for="tool-sort">Sort tools</label>'
+    assert 'Search, category and platform filter both sections. Ordering changes Other tools only.' in result
+    assert 'recommended-only' not in result
+    assert 'show-all-tools' not in result
+    assert ('<div class="sort-field"><label for="tool-sort">Other tool order</label>'
             '<select id="tool-sort"><option value="category">Category</option>'
             '<option value="name">Name</option></select></div>') in result
+    assert result.count('id="clear-filters"') == 1
     assert '<div class="filters" id="catalog-filters" hidden>' in result
-    assert ('<nav class="category-navigation" id="category-navigation" '
-            'aria-label="Tool categories" hidden>') in result
     assert '<div class="catalog-grid" id="other-tools-by-name" hidden></div>' in result
-    assert '<a class="category-tile" href="#category-group-testing"' in result
+    assert not layout.category_tiles
     assert result.count('class="recommendation recommended"') == 1
     assert result.count('<details class="recommendation-disclosure">') == 1
-    guide_start = result.index('<section class="recommendation-guide"')
-    guide_end = result.index('</section>', guide_start)
+    guide_start = result.index('<details class="recommendation-guide"')
+    guide_end = result.index('</details>', guide_start)
     guide = result[guide_start:guide_end]
-    assert guide.count('<p>') == 2
-    assert 'Catalog maintainers selected this tool as a preferred starting point' in guide
-    assert 'Selection is not certification' in guide
-    assert 'claim that specification conformance or task outcomes were checked' in guide
-    assert 'Any review results and scope limitations are stated only when recorded' in guide
-    assert 'representative-task evidence' not in guide
+    assert guide.count('<p>') == 1
+    assert 'id="recommendation-guide-title"' in guide
+    assert 'Maintainers select a preferred starting point for a category' in guide
+    assert 'This is not a quality certification' in guide
+    assert 'A snapshot refresh does not renew the designation.' in guide
+    assert 'Recommended tools are maintainer-selected starting points at recorded revisions, not quality certification.' in result
     assert 'recorded source revision' in guide
-    assert 'not certification' in guide
-    assert 'no current recommendation is recorded' in guide
     assert 'What does Recommended mean?' in guide
     assert (f'Catalog maintainers selected this tool as a preferred starting point '
             f'for its category at the recorded source revision <code>{COMMIT}</code>.') in result
@@ -235,15 +237,15 @@ def test_zero_recommendations_keep_classified_and_unclassified_tools_visible(tmp
     }
     assert 'id="recommended-heading">Recommended</h2>' in result
     assert 'id="recommended-count">0 tools</span>' in result
-    assert ('id="no-recommended">No tools are currently designated Recommended. '
-            'Browse all tools below.</p>') in result
-    assert 'id="other-tools-heading">All tools</h2>' in result
+    assert 'id="recommended-empty" hidden>No Recommended tools match these filters.</p>' in result
+    assert 'id="other-tools-heading">Other tools</h2>' in result
     assert 'id="other-count">3 tools</span>' in result
     assert 'id="category-group-count-testing">2 tools</span>' in result
     assert 'id="category-group-count-unclassified">1 tool</span>' in result
-    assert result.count('<input id="recommended-only" type="checkbox">') == 1
-    assert '<button id="show-all-tools" class="button" type="button" hidden>Show all matching tools</button>' in result
-    assert '<button id="clear-filters" class="button clear-filters" type="button">Clear all filters</button>' in result
+    assert 'recommended-only' not in result
+    assert 'show-all-tools' not in result
+    assert '<button id="clear-filters" class="button clear-filters" type="button">Clear filters</button>' in result
+    assert all('hidden' not in card for card in Cards(result).cards)
 
 
 def test_two_categories_can_each_have_a_recommendation(tmp_path):
@@ -602,9 +604,12 @@ def test_unicode_category_labels_and_scopes_are_preserved_and_escaped(tmp_path, 
     result = render(tmp_path)
     escaped_label = build.html.escape(label, quote=True)
     escaped_scope = build.html.escape(scope, quote=True)
-    assert f'<option value="testing">{escaped_label}</option>' in result
+    assert f'<option value="testing" data-scope="{escaped_scope}">{escaped_label}</option>' in result
     assert f'<span>Category: {escaped_label}</span>' in result
-    assert f'<span class="category-tile-scope">{escaped_scope}</span>' in result
+    assert '<p class="category-scope" id="category-scope" hidden></p>' in result
+    assert 'value="__unclassified__"' not in result
+    assert 'data-category-filter' not in result
+    assert 'category-navigation' not in result
     assert '<details class="category-scopes">' not in result
     assert '<img onerror=' not in result and '<script>bad</script>' not in result
     assert Cards(result).cards[0]['data-category'] == 'testing'
@@ -665,8 +670,11 @@ def test_recommendation_guidance_separates_creator_and_maintainer_roles(relative
     assert 'Any review results and scope limitations are stated only when recorded.' in guidance
     assert 'representative-task evidence' not in guidance
     if relative == 'site/README.md':
-        assert 'The page-level “What does Recommended mean?” guide remains visible by default' in guidance
-        assert 'fit-first selection, neutral unclassified state, and optional filter behavior' in guidance
+        assert ('A compact, closed-by-default “What does Recommended mean?” details '
+                'disclosure under that heading explains the selection and its limits') in guidance
+        assert 'One control bar sits above both result sections.' in guidance
+        assert 'The page supports fit-first selection and a neutral unclassified state.' in guidance
+        assert 'no second category-navigation area.' in guidance
 
 
 def test_skill_discovery_validates_catalog_and_avoids_browse_fetches():

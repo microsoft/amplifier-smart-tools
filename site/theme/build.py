@@ -207,7 +207,12 @@ def catalog(config, args, root):
             detail = f'<details><summary>Full description and source</summary><p>{esc(description)}</p><p>Manifest name: {esc(name)}</p><ul>{"".join("<li>"+esc(u)+"</li>" for u in use_cases)}</ul><p>Snapshot refreshed: {esc(prov["last_success"])}</p><p>Source commit: <code>{esc(commit)}</code></p><p>Ref: {esc(prov["source"]["ref"])} / Path: {esc(prov["source"]["path"])}</p></details>'
         showcase = next((key for key,p in PAGES.items() if repo == repo_url(key) and key not in ('overview','catalog')),None)
         launch = link(page_url(showcase,args),'Explore tool') if showcase else ''
-        search = esc(' '.join([str(name),description,*use_cases,*tool_platforms]).lower())
+        search_values = [str(name), description, *use_cases, *tool_platforms]
+        if categories is not None:
+            category_label = category['label'] if category else 'Not yet classified'
+            search_values = [str(name), display_name, description, *use_cases,
+                             *tool_platforms, category_label]
+        search = esc(' '.join(search_values).lower())
         tags = ''.join('<span class="tag">'+esc(p)+'</span>' for p in tool_platforms)
         category_attr = (
             f' data-category="{esc(listing["category"] if listing else "")}"'
@@ -240,10 +245,6 @@ def catalog(config, args, root):
         category_details = (
             '<details class="category-scopes" id="category-scopes">'
             f'<summary>Category labels and scopes</summary><dl>{scopes}</dl></details>')
-        recommendation_filter = (
-            '<div class="recommended-field" id="recommended-filter">'
-            '<label for="recommended-only">'
-            '<input id="recommended-only" type="checkbox"> Recommended only</label></div>')
         recommendation_guide = (
             '<section class="recommendation-guide" aria-labelledby="recommendation-guide-title">'
             '<h2 id="recommendation-guide-title">What does Recommended mean?</h2>'
@@ -264,7 +265,6 @@ def catalog(config, args, root):
         empty_state = (
             '<div id="empty-results" class="empty" hidden><h3 id="empty-title">No matching tools.</h3>'
             f'<p id="empty-hint">{empty_hint}</p>'
-            '<button id="show-all-tools" class="button" type="button" hidden>Show all matching tools</button>'
             '<button id="clear-filters" class="button" type="button">Clear all filters</button></div>')
     else:
         empty_state = (
@@ -276,7 +276,7 @@ def catalog(config, args, root):
 
 
 def catalog_browsing_layout(entries, catalog_entries, platforms, categories, args):
-    """Render the registry-backed catalog as separate recommendation and category regions."""
+    """Render a shared filter bar above separate recommendation and ordinary results."""
 
     def tool_count(count):
         return f'{count} tool' if count == 1 else f'{count} tools'
@@ -284,57 +284,33 @@ def catalog_browsing_layout(entries, catalog_entries, platforms, categories, arg
     ordered = sorted(catalog_entries, key=lambda item: (not item[0], item[1]))
     recommended = [item for item in ordered if item[0]]
     others = [item for item in ordered if not item[0]]
-    category_counts = {identity: 0 for identity in categories}
     other_by_category = {identity: [] for identity in categories}
     unclassified = []
     for is_recommended, slug, identity, card in ordered:
-        if identity in category_counts:
-            category_counts[identity] += 1
-            if not is_recommended:
-                other_by_category[identity].append(card)
-        elif not is_recommended:
+        if is_recommended:
+            continue
+        if identity in other_by_category:
+            other_by_category[identity].append(card)
+        else:
             unclassified.append(card)
 
     platforms_html = ''.join(
         f'<option value="{esc(platform)}">{esc(platform)}</option>'
         for platform in sorted(platforms))
     category_options = ''.join(
-        f'<option value="{esc(identity)}">{html.escape(category["label"], quote=True)}</option>'
-        for identity, category in sorted(categories.items()))
-    tiles = []
-    fallback_tiles = []
-    for identity, category in sorted(categories.items()):
-        label = html.escape(category['label'], quote=True)
-        scope = html.escape(category['scope'], quote=True)
-        count = tool_count(category_counts[identity])
-        tiles.append(
-            f'<button class="category-tile" type="button" data-category-filter="{esc(identity)}" '
-            f'aria-pressed="false"><span class="category-tile-heading"><span>{label}</span>'
-            f'<span class="category-tile-count" id="category-filter-count-{esc(identity)}">{count}'
-            f'</span></span><span class="category-tile-scope">{scope}</span></button>')
-        if other_by_category[identity]:
-            target = f'category-group-{identity}'
-        elif category_counts[identity]:
-            target = 'recommended-region'
-        else:
-            target = 'other-tools'
-        fallback_tiles.append(
-            f'<a class="category-tile" href="#{esc(target)}"><span class="category-tile-heading">'
-            f'<span>{label}</span><span class="category-tile-count">{count}</span></span>'
-            f'<span class="category-tile-scope">{scope}</span></a>')
-    all_count = tool_count(len(entries))
-    all_tile = (
-        '<button class="category-tile all-categories" type="button" data-category-filter="" '
-        'aria-pressed="true"><span class="category-tile-heading"><span>All categories</span>'
-        f'<span class="category-tile-count" id="category-filter-count-all">{all_count}</span>'
-        '</span><span class="category-tile-scope">Browse every category and not-yet-classified tools.</span></button>')
-    fallback_all_tile = (
-        '<a class="category-tile all-categories" href="#other-tools"><span class="category-tile-heading">'
-        f'<span>All categories</span><span class="category-tile-count">{all_count}</span></span>'
-        '<span class="category-tile-scope">Browse every category and not-yet-classified tools.</span></a>')
+        f'<option value="{esc(identity)}" data-scope="{html.escape(category["scope"], quote=True)}">'
+        f'{html.escape(category["label"], quote=True)}</option>'
+        for identity, category in sorted(categories.items(),
+                                         key=lambda item: item[1]['label'].casefold()))
+    category_options = '<option value="" data-scope="">All categories</option>' + category_options
+    if unclassified:
+        category_options += (
+            '<option value="__unclassified__" data-scope="Tools without an assigned primary category.">'
+            'Not yet classified</option>')
 
     groups = []
-    for identity, category in sorted(categories.items()):
+    for identity, category in sorted(categories.items(),
+                                     key=lambda item: item[1]['label'].casefold()):
         cards = other_by_category[identity]
         if not cards:
             continue
@@ -355,28 +331,20 @@ def catalog_browsing_layout(entries, catalog_entries, platforms, categories, arg
             f'</span></h3><div class="catalog-grid">{"".join(unclassified)}</div></section>')
 
     recommendation_context = (
-        '<section class="recommendation-guide" aria-labelledby="recommendation-guide-title">'
-        '<h3 id="recommendation-guide-title">What does Recommended mean?</h3>'
-        '<p>Catalog maintainers selected this tool as a preferred starting point for its category '
-        'at the recorded source revision. Selection is not certification or a claim that '
-        'specification conformance or task outcomes were checked. Any review results and scope '
-        'limitations are stated only when recorded.</p>'
-        '<p>Compare documented capabilities, platforms, and prerequisites with your task; suitable '
-        'alternatives remain available. A missing designation means no current recommendation is '
-        'recorded, not a negative quality judgment.</p></section>')
-    empty_hint = 'Try a broader term, another platform, or another category.'
-    empty_state = (
-        f'<div id="empty-results" class="empty"{" hidden" if entries else ""}>'
-        '<h3 id="empty-title">No matching tools.</h3>'
-        f'<p id="empty-hint">{empty_hint}</p></div>')
-    no_recommendations = ' hidden' if recommended else ''
-    other_heading = 'Other tools' if recommended else 'All tools'
-    return f'''<section class="hero catalog-hero"><p class="eyebrow">Amplifier Smart Tools / Catalog</p><h1>Find a tool.<br>Make something happen.</h1><p class="lede">Domain expertise you can put to work. Explore the tools, inspect their requirements, and bring the right one to your agent.</p><div class="actions">{link('#discovery','Get the skill','button primary')}{link(repo_url('catalog')+'#contributing','Add a tool','text-link')}</div></section>
-    <section class="catalog-browser" aria-label="Browse smart tools"><div class="filters" id="catalog-filters" hidden><div class="search-field"><label for="tool-search">Search tools and use cases</label><input id="tool-search" type="search" placeholder="Try video, research, or presentations" autocomplete="off"></div><div><label for="platform">Declared platform</label><select id="platform"><option value="">All platforms</option>{platforms_html}</select></div><div><label for="category">Primary category</label><select id="category"><option value="">All categories</option>{category_options}<option value="__unclassified__">Not yet classified</option></select></div><div class="sort-field"><label for="tool-sort">Sort tools</label><select id="tool-sort"><option value="category">Category</option><option value="name">Name</option></select></div><div id="recommended-filter" class="recommended-field"><label for="recommended-only"><input id="recommended-only" type="checkbox"> Recommended only</label></div><button id="clear-filters" class="button clear-filters" type="button">Clear all filters</button></div><p class="catalog-count" id="result-count" role="status">{all_count}</p><noscript><p class="no-script-note">Search and filters need JavaScript. Browse by category or scan all tools below.</p></noscript>
-    <section class="recommendation-region" id="recommended-region" aria-labelledby="recommended-heading"><div class="catalog-section-heading"><h2 id="recommended-heading">Recommended</h2><span class="catalog-count" id="recommended-count">{tool_count(len(recommended))}</span></div><div class="catalog-grid" id="recommended-tools">{''.join(item[3] for item in recommended)}</div><p class="recommendation-empty" id="no-recommended"{no_recommendations}>No tools are currently designated Recommended. Browse all tools below.</p><p class="recommendation-empty" id="recommended-empty" hidden>No Recommended tools match these filters.</p><button id="show-all-tools" class="button" type="button" hidden>Show all matching tools</button>{recommendation_context}</section>
-    <section class="category-navigation-region" aria-labelledby="category-navigation-heading"><h2 id="category-navigation-heading">Browse by category</h2><nav class="category-navigation" id="category-navigation" aria-label="Tool categories" hidden>{all_tile}{''.join(tiles)}</nav><noscript><nav class="category-navigation" aria-label="Browse by category">{fallback_all_tile}{''.join(fallback_tiles)}</nav></noscript></section>
-    <section class="other-tools-region" id="other-tools" aria-labelledby="other-tools-heading"><div class="catalog-section-heading"><h2 id="other-tools-heading">{other_heading}</h2><span class="catalog-count" id="other-count">{tool_count(len(others))}</span></div><div id="other-tool-groups"><div class="catalog-grid" id="other-tools-by-name" hidden></div>{''.join(groups)}</div></section>
-    {empty_state}<p class="catalog-note">Descriptions and declared platforms come from the tools' own manifest snapshots. A listing does not establish installation or usability in your environment. Expand an entry to inspect its source revision and refresh time.</p></section>
+        '<p class="recommendation-context">Recommended tools are maintainer-selected starting '
+        'points at recorded revisions, not quality certification.</p>'
+        '<details class="recommendation-guide">'
+        '<summary id="recommendation-guide-title">What does Recommended mean?</summary>'
+        '<p>Maintainers select a preferred starting point for a category at a recorded source '
+        'revision. This is not a quality certification or a claim that conformance or task '
+        'outcomes were checked. Each Recommended card shows its recorded revision and any '
+        'recorded review scope. A snapshot refresh does not renew the designation.</p></details>')
+    all_count = tool_count(len(entries))
+    return f'''<section class="hero catalog-hero"><h1>Smart Tools catalog</h1><p class="lede">Find a tool for the work you need to do.</p></section>
+    <section class="catalog-browser" aria-label="Browse smart tools"><div class="filters" id="catalog-filters" hidden><div class="search-field"><label for="tool-search">Search</label><input id="tool-search" type="search" placeholder="Search tools or categories" autocomplete="off"></div><div class="category-field"><label for="category">Category</label><select id="category" aria-describedby="category-scope">{category_options}</select><p class="category-scope" id="category-scope" hidden></p></div><div><label for="platform">Platform</label><select id="platform"><option value="">All platforms</option>{platforms_html}</select></div><div class="sort-field"><label for="tool-sort">Other tool order</label><select id="tool-sort"><option value="category">Category</option><option value="name">Name</option></select></div><button id="clear-filters" class="button clear-filters" type="button">Clear filters</button><p class="filter-scope">Search, category and platform filter both sections. Ordering changes Other tools only.</p></div><p class="catalog-count" id="result-count" role="status">{all_count}</p><p class="empty-results" id="empty-results" hidden>No matching tools.</p><noscript><p class="no-script-note">All tools are listed below.</p></noscript>
+    <section class="recommendation-region" id="recommended-region" aria-labelledby="recommended-heading"><div class="catalog-section-heading"><h2 id="recommended-heading">Recommended</h2><span class="catalog-count" id="recommended-count">{tool_count(len(recommended))}</span></div>{recommendation_context}<p class="recommendation-empty" id="recommended-empty" hidden>No Recommended tools match these filters.</p><div class="catalog-grid" id="recommended-tools">{''.join(item[3] for item in recommended)}</div></section>
+    <section class="other-tools-region" id="other-tools" aria-labelledby="other-tools-heading"><div class="catalog-section-heading"><h2 id="other-tools-heading">Other tools</h2><span class="catalog-count" id="other-count">{tool_count(len(others))}</span></div><p class="recommendation-empty" id="other-empty" hidden>No other tools match these filters.</p><div id="other-tool-groups"><div class="catalog-grid" id="other-tools-by-name" hidden></div>{''.join(groups)}</div></section>
+    <p class="catalog-note">Descriptions and declared platforms come from the tools' own manifest snapshots. A listing does not establish installation or usability in your environment. Expand an entry to inspect its source revision and refresh time.</p></section>
     <section class="section two-col" id="discovery"><div><p class="eyebrow">Let your agent help</p><h2>One skill.<br>The whole catalog.</h2><p style="margin-top:24px">Ask your agent to find a Smart Tool for your task. It can inspect the manifest, check the local environment, and follow the selected tool's own guidance.</p></div><div class="callout"><h3>Install the skill.</h3>{code_box(SKILL_INSTALL,'Terminal','install')}<p class="note">This installs guidance for your agent, not the tools or their credentials.</p>{link(repo_url('overview')+SKILL_PATH,'Read the skill','text-link')}</div></section>'''
 
 
