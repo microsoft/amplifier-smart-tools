@@ -70,14 +70,15 @@ not assume a host API, command, or permission is available.
 
 ### Recommendation and readiness
 
-Recommended means a catalog-maintainer-curated starting point for a category at a
-recorded source revision. The review standard calls for specification conformance,
-representative-task evidence, and documented limitations. It is not certification, a
-quality guarantee, current branch health, or proof of compatibility or readiness in the
-user's environment. A snapshot records what was captured, not that a moving branch is
-unchanged; refresh does not renew the designation. Report readiness separately, and do
-not invent review evidence or test results. Recommendation metadata is editorial: tool
-creators do not nominate or select entries; catalog maintainers make those decisions.
+Recommended means catalog maintainers selected this tool as a preferred starting point
+for its category at the recorded source revision. Selection is not certification or a
+claim that specification conformance or task outcomes were checked. Any review results
+and scope limitations are stated only when recorded. It is not a quality guarantee,
+current branch health, or proof of compatibility or readiness in the user's environment.
+A snapshot records what was captured, not that a moving branch is unchanged; refresh does
+not renew the designation. Report readiness separately, and do not invent review
+evidence or test results. Recommendation metadata is editorial: tool creators do not
+nominate or select entries; catalog maintainers make those decisions.
 
 ### Boundaries and report
 
@@ -167,9 +168,7 @@ Choose one of these two paths, based on the task and available authorized tools:
    `path` selects the distribution root containing `smart-tool.json` and defaults to
    `.`. Do not hand-copy `SMART_TOOL.md` or `provenance.json`; the catalog refresh action
    generates those snapshots.
-2. Run the specification repository's
-   [conformance kit](https://github.com/microsoft/amplifier-smart-tools/tree/main/conformance).
-   An optional `tools/<slug>/listing.json` may provide ordinary classification in an
+2. An optional `tools/<slug>/listing.json` may provide ordinary classification in an
    existing primary `category`, with `recommended: false` and no `reviewed_source`.
 3. Submit a pull request to the catalog with the source pointer and optional listing,
    following the [catalog README contribution instructions](https://github.com/microsoft/amplifier-smart-tools-catalog#contributing).

@@ -1106,7 +1106,7 @@ p+p {
 
 #catalog-filters {
   display: grid;
-  grid-template-columns: minmax(200px,2fr) repeat(2,minmax(135px,1fr)) auto auto;
+  grid-template-columns: minmax(190px,2fr) repeat(3,minmax(100px,1fr)) auto auto;
   align-items: end;
 }
 

@@ -142,6 +142,7 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     assert [card['data-tool'] for card in cards] == ['zulu', 'alternative', 'alpha']
     assert [card['data-category'] for card in cards] == ['testing', 'testing', '']
     assert [card['data-recommended'] for card in cards] == ['true', 'false', 'false']
+    assert [card['data-name'] for card in cards] == ['Zulu', 'Alternative', 'Alpha']
     assert all('hidden' not in card for card in cards)
     by_slug = {card['data-tool']: ' '.join(card['text'].split()) for card in cards}
     assert 'Category: Test environments' in by_slug['zulu']
@@ -181,22 +182,32 @@ def test_recommendations_first_categories_and_unclassified_remain(tmp_path):
     assert ('<div id="recommended-filter" class="recommended-field">'
             '<label for="recommended-only"><input id="recommended-only" '
             'type="checkbox"> Recommended only</label></div>') in result
+    assert ('<div class="sort-field"><label for="tool-sort">Sort tools</label>'
+            '<select id="tool-sort"><option value="category">Category</option>'
+            '<option value="name">Name</option></select></div>') in result
+    assert '<div class="filters" id="catalog-filters" hidden>' in result
+    assert ('<nav class="category-navigation" id="category-navigation" '
+            'aria-label="Tool categories" hidden>') in result
+    assert '<div class="catalog-grid" id="other-tools-by-name" hidden></div>' in result
+    assert '<a class="category-tile" href="#category-group-testing"' in result
     assert result.count('class="recommendation recommended"') == 1
     assert result.count('<details class="recommendation-disclosure">') == 1
     guide_start = result.index('<section class="recommendation-guide"')
     guide_end = result.index('</section>', guide_start)
     guide = result[guide_start:guide_end]
     assert guide.count('<p>') == 2
-    assert 'specification conformance' in guide
-    assert 'representative-task evidence' in guide
+    assert 'Catalog maintainers selected this tool as a preferred starting point' in guide
+    assert 'Selection is not certification' in guide
+    assert 'claim that specification conformance or task outcomes were checked' in guide
+    assert 'Any review results and scope limitations are stated only when recorded' in guide
+    assert 'representative-task evidence' not in guide
     assert 'recorded source revision' in guide
-    assert 'scoped' in guide
     assert 'not certification' in guide
-    assert 'proof of readiness' in guide
     assert 'no current recommendation is recorded' in guide
     assert 'What does Recommended mean?' in guide
-    assert (f'Maintainer-curated starting point for this category at recorded source '
-            f'revision <code>{COMMIT}</code>.') in result
+    assert (f'Catalog maintainers selected this tool as a preferred starting point '
+            f'for its category at the recorded source revision <code>{COMMIT}</code>.') in result
+    assert 'claim that conformance or task outcomes were checked' in result
     assert COMMIT in result and PROVENANCE['last_success'] in result
 
 
@@ -649,8 +660,10 @@ def test_recommendation_guidance_separates_creator_and_maintainer_roles(relative
     guidance = ' '.join((SITE.parent/relative).read_text().split())
     assert 'recommended: false' in guidance
     assert 'creators do not nominate or select entries; catalog maintainers make those decisions.' in guidance
-    assert 'representative-task evidence' in guidance
-    assert 'documented limitations' in guidance
+    assert 'catalog maintainers selected this tool as a preferred starting point' in guidance
+    assert 'claim that specification conformance or task outcomes were checked' in guidance
+    assert 'Any review results and scope limitations are stated only when recorded.' in guidance
+    assert 'representative-task evidence' not in guidance
     if relative == 'site/README.md':
         assert 'The page-level “What does Recommended mean?” guide remains visible by default' in guidance
         assert 'fit-first selection, neutral unclassified state, and optional filter behavior' in guidance
@@ -710,7 +723,8 @@ def test_catalog_maintainer_procedure_references_canonical_guide():
     guidance = ' '.join((SITE.parent/'site/README.md').read_text().split())
     assert '### Maintainer recommendation review' in guidance
     assert '[maintainer curation guide](https://github.com/microsoft/amplifier-smart-tools-catalog/blob/main/docs/maintainers.md)' in guidance
-    assert 'normative maintainer roles, review standard, merge gate' in guidance
+    assert 'normative maintainer roles and designation, renewal, replacement, and withdrawal procedures' in guidance
+    assert 'review standard, merge gate' not in guidance
     assert 'For each designation, catalog maintainers should:' not in guidance
     assert 'Run the specification conformance kit against that revision.' not in guidance
 

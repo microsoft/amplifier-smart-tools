@@ -103,12 +103,12 @@ An effective Recommended designation requires pointer repository/ref/path to mat
 snapshot provenance and reviewed repository/path/commit to match that provenance.
 Missing snapshots or mismatched identities show “Recommendation needs review” and
 remove recommendation preference without removing the entry or its category. Recommended
-means a catalog-maintainer-curated starting point at the recorded source revision. The
-review standard calls for specification conformance, representative-task evidence, and
-documented limitations. The review is scoped, not certification, a quality guarantee, or
-proof of readiness in a particular environment. A snapshot is point-in-time; refreshing
-it does not renew the designation. Each Recommended card keeps a keyboard-accessible
-revision disclosure.
+means catalog maintainers selected this tool as a preferred starting point for its
+category at the recorded source revision. Selection is not certification or a claim that
+specification conformance or task outcomes were checked. Any review results and scope
+limitations are stated only when recorded. A snapshot is point-in-time; refreshing it does
+not renew the designation. Each Recommended card keeps a keyboard-accessible revision
+disclosure.
 
 The catalog page has a distinct, always-visible Recommended region with its current
 count. When no tools are designated, it says “No tools are currently designated
@@ -120,10 +120,14 @@ and describes the review and its limits in two short paragraphs.
 Below it, “Browse by category” shows every registry category’s label, current count, and
 visible one-line scope. Ordinary tools appear once beneath visible category headings and
 counts; unclassified entries appear under “Not yet classified.” Recommended cards stay
-in their own region rather than being duplicated in those groups. With JavaScript,
-category buttons and the shared keyword, platform, category, and optional
+in their own region rather than being duplicated in those groups. With JavaScript, the
+native “Sort tools” select defaults to Category or switches ordinary tools to one global
+alphabetical Name grid; Recommended cards stay at the top and ordinary cards retain their
+category labels. Category buttons and the shared keyword, platform, category, and optional
 “Recommended only” filters combine with AND. Counts and empty states update as filters
-change. Without JavaScript, category links and all server-rendered cards remain usable.
+change, and clearing filters preserves the selected sort. Without JavaScript, sort
+controls remain hidden, the category groups stay intact, category links work, and all
+server-rendered cards remain usable.
 
 With a category registry, every card names its category and current recommendation state: “Category: {label}” with “Recommended,” “Recommendation needs review,” or “Not currently recommended.” Cards without a listing show “Category: Not yet classified” and “Not currently recommended.” A legacy catalog without a registry keeps its existing card markup.
 
@@ -133,17 +137,17 @@ decisions. Creators may submit a source pointer and optional ordinary category w
 
 ### Maintainer recommendation review
 
-The normative maintainer roles, review standard, merge gate, and designation,
-renewal, replacement, and withdrawal procedures live in the catalog's
+The normative maintainer roles and designation, renewal, replacement, and withdrawal
+procedures live in the catalog's
 [maintainer curation guide](https://github.com/microsoft/amplifier-smart-tools-catalog/blob/main/docs/maintainers.md).
 
 The page supports fit-first selection, neutral unclassified state, and optional
 filter behavior. Recommended tools appear once in their own region. Other tools are
 grouped under visible category headings and counts, with unclassified tools under
-“Not yet classified.” Keyword, declared platform, primary category, and the optional
-“Recommended only” checkbox combine with AND. Category tiles keep their labels,
-counts, and one-line scopes visible. All cards and category links remain usable
-without JavaScript.
+“Not yet classified,” or can be sorted globally by name. Keyword, declared platform,
+primary category, and the optional “Recommended only” checkbox combine with AND.
+Category tiles keep their labels, counts, and one-line scopes visible. All cards and
+category links remain usable without JavaScript.
 
 `site/sync_theme.py` copies the helper with the renderer, CSS, JavaScript, family registry, license, and shared motion assets. Review the synchronized diff and run a build in the target catalog before adoption; do not update only a vendored theme copy.
 

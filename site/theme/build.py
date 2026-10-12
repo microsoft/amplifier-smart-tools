@@ -106,11 +106,11 @@ def overview(config, args):
       <ol class="numbered"><li><h3>Put the capability in a library.</h3><p>Expose every useful operation through the library. Add genuine model-backed work alongside deterministic paths that load and run without a provider.</p>{link(SPEC+'structure.html','Library structure','text-link')}</li>
       <li><h3>Describe it where the code lives.</h3><p>Ship one SMART_TOOL.md manifest with the name, purpose, platforms, and prerequisites. Add library-owned usage guidance and capability help.</p>{link(SPEC+'manifest.html','Manifest format','text-link')}</li>
       <li><h3>Add the CLI and package it.</h3><p>Keep argument parsing and I/O in a thin CLI. Support installation from Git, and provide a smart-tool.json descriptor at the distribution root.</p>{link(SPEC+'packaging.html','Packaging and installation','text-link')}</li>
-      <li><h3>Check the format. Prove the work.</h3><p>Run the conformance kit against the distribution. Test the actual capabilities separately, then follow the catalog contribution guide to make the tool discoverable.</p>{link(repo_url('overview')+'/tree/main/conformance','Conformance kit','text-link')}</li></ol>
+      <li><h3>Tell format checks from task results.</h3><p>A conformance check addresses format. Task-specific checks can answer separate questions about behavior; report only results that were actually observed. Follow the catalog contribution guide to make the tool discoverable.</p>{link(repo_url('overview')+'/tree/main/conformance','Conformance kit','text-link')}</li></ol>
     </section>
     <section class="section two-col"><div><p class="eyebrow">A small, explicit contract</p><h2>Make the entry<br>points easy to find.</h2><p style="margin-top:24px">The descriptor points to the manifest and tells a caller how to launch the CLI. The manifest carries the tool's identity and requirements.</p><p class="note">This example assumes the package installs a my-smart-tool executable with a provider-free manifest command.</p></div><div>
       {code_box(descriptor,'smart-tool.json / example','descriptor')}
-      {code_box('uv run conformance/run.py path/to/your-smart-tool','From the specification checkout','conformance')}
+      {code_box('uv run conformance/run.py path/to/your-smart-tool','Example format check','conformance')}
       <p class="note">Conformance checks the format and reports checks it cannot perform. It does not certify output quality or replace product tests.</p>
     </div></section>
     <section class="section two-col" id="skill"><div><p class="eyebrow">Let your agent help</p><h2>One skill.<br>Find, use, build.</h2><p style="margin-top:24px">Install the Amplifier Smart Tools skill and ask your agent for a Smart Tool for your task. It reads the catalog, installs the tool, follows the tool's own help, and can scaffold a new tool when none fits.</p></div><div class="callout"><h3>Install the skill.</h3>{code_box(SKILL_INSTALL,'Terminal','install')}<p class="note">This installs guidance for your agent, not the tools or their credentials.</p>{link(repo_url('overview')+SKILL_PATH,'Read the skill','text-link')}</div></section>
@@ -166,9 +166,11 @@ def catalog(config, args, root):
                 badge = (
                     '<details class="recommendation-disclosure">'
                     '<summary class="recommendation recommended">Recommended</summary>'
-                    f'<p>Maintainer-curated starting point for this category at recorded '
-                    f'source revision <code>{esc(listing["reviewed_source"]["commit"])}</code>. '
-                    'Not certification or proof of host readiness. See '
+                    f'<p>Catalog maintainers selected this tool as a preferred starting point '
+                    f'for its category at the recorded source revision '
+                    f'<code>{esc(listing["reviewed_source"]["commit"])}</code>. This selection '
+                    'is not certification or a claim that conformance or task outcomes were '
+                    'checked. See '
                     '<a href="#recommendation-guide-title">What does Recommended '
                     'mean?</a> for review scope and limits.</p>'
                     '</details>')
@@ -210,6 +212,7 @@ def catalog(config, args, root):
         category_attr = (
             f' data-category="{esc(listing["category"] if listing else "")}"'
             f' data-recommended="{str(state == "recommended").lower()}"'
+            f' data-name="{esc(display_name)}"'
             if categories is not None else '')
         card = f'<article class="catalog-card" data-tool="{esc(slug)}" data-platforms="{esc(" ".join(tool_platforms))}" data-search="{search}"{category_attr}><h2>{esc(display_name)}</h2>{classification}<p>{esc(excerpt)}</p><div class="tool-meta">{tags}</div>{detail}<div class="card-links">{launch}{link(repo,"Repository")}{manifest_link}</div></article>'
         entries.append((state != 'recommended', slug, card))
@@ -245,14 +248,14 @@ def catalog(config, args, root):
             '<section class="recommendation-guide" aria-labelledby="recommendation-guide-title">'
             '<h2 id="recommendation-guide-title">What does Recommended mean?</h2>'
             '<ul>'
-            '<li>Maintainers curate a Recommended tool as a starting point for its category '
-            'at the recorded source revision. The review standard covers specification '
-            'conformance, representative-task evidence, and documented limitations. It is '
-            'not certification or proof of host readiness; a snapshot refresh does not '
-            'renew the designation.</li>'
+            '<li>Catalog maintainers selected this tool as a preferred starting point for its '
+            'category at the recorded source revision. Selection is not certification or a '
+            'claim that specification conformance or task outcomes were checked. Any review '
+            'results and scope limitations are stated only when recorded; a snapshot refresh '
+            'does not renew the designation.</li>'
             '<li>Compare documented capabilities, platform support, and prerequisites with '
-            'your task first. Recommended is a preference among suitable options, not an '
-            'override; consider suitable alternatives.</li>'
+            'your task first. Recommended is a preference, not an override; consider other '
+            'options.</li>'
             '<li>Unclassified or undesignated tools are not a negative quality judgment. '
             '“Recommended only” is optional and starts unchecked, so all tools remain '
             'visible by default.</li>'
@@ -354,12 +357,13 @@ def catalog_browsing_layout(entries, catalog_entries, platforms, categories, arg
     recommendation_context = (
         '<section class="recommendation-guide" aria-labelledby="recommendation-guide-title">'
         '<h3 id="recommendation-guide-title">What does Recommended mean?</h3>'
-        '<p>Maintainers designate a starting point after checking specification conformance and '
-        'documenting representative-task evidence and limitations at a recorded source revision.</p>'
-        '<p>That review is scoped; it is not certification, a quality guarantee, or proof of readiness '
-        'in your environment. Compare documented capabilities, platforms, and prerequisites with '
-        'your task; suitable alternatives remain available. A missing designation means no current '
-        'recommendation is recorded, not a negative quality judgment.</p></section>')
+        '<p>Catalog maintainers selected this tool as a preferred starting point for its category '
+        'at the recorded source revision. Selection is not certification or a claim that '
+        'specification conformance or task outcomes were checked. Any review results and scope '
+        'limitations are stated only when recorded.</p>'
+        '<p>Compare documented capabilities, platforms, and prerequisites with your task; suitable '
+        'alternatives remain available. A missing designation means no current recommendation is '
+        'recorded, not a negative quality judgment.</p></section>')
     empty_hint = 'Try a broader term, another platform, or another category.'
     empty_state = (
         f'<div id="empty-results" class="empty"{" hidden" if entries else ""}>'
@@ -368,10 +372,10 @@ def catalog_browsing_layout(entries, catalog_entries, platforms, categories, arg
     no_recommendations = ' hidden' if recommended else ''
     other_heading = 'Other tools' if recommended else 'All tools'
     return f'''<section class="hero catalog-hero"><p class="eyebrow">Amplifier Smart Tools / Catalog</p><h1>Find a tool.<br>Make something happen.</h1><p class="lede">Domain expertise you can put to work. Explore the tools, inspect their requirements, and bring the right one to your agent.</p><div class="actions">{link('#discovery','Get the skill','button primary')}{link(repo_url('catalog')+'#contributing','Add a tool','text-link')}</div></section>
-    <section class="catalog-browser" aria-label="Browse smart tools"><div class="filters" id="catalog-filters" hidden><div class="search-field"><label for="tool-search">Search tools and use cases</label><input id="tool-search" type="search" placeholder="Try video, research, or presentations" autocomplete="off"></div><div><label for="platform">Declared platform</label><select id="platform"><option value="">All platforms</option>{platforms_html}</select></div><div><label for="category">Primary category</label><select id="category"><option value="">All categories</option>{category_options}<option value="__unclassified__">Not yet classified</option></select></div><div id="recommended-filter" class="recommended-field"><label for="recommended-only"><input id="recommended-only" type="checkbox"> Recommended only</label></div><button id="clear-filters" class="button clear-filters" type="button">Clear all filters</button></div><p class="catalog-count" id="result-count" role="status">{all_count}</p><noscript><p class="no-script-note">Search and filters need JavaScript. Browse by category or scan all tools below.</p></noscript>
+    <section class="catalog-browser" aria-label="Browse smart tools"><div class="filters" id="catalog-filters" hidden><div class="search-field"><label for="tool-search">Search tools and use cases</label><input id="tool-search" type="search" placeholder="Try video, research, or presentations" autocomplete="off"></div><div><label for="platform">Declared platform</label><select id="platform"><option value="">All platforms</option>{platforms_html}</select></div><div><label for="category">Primary category</label><select id="category"><option value="">All categories</option>{category_options}<option value="__unclassified__">Not yet classified</option></select></div><div class="sort-field"><label for="tool-sort">Sort tools</label><select id="tool-sort"><option value="category">Category</option><option value="name">Name</option></select></div><div id="recommended-filter" class="recommended-field"><label for="recommended-only"><input id="recommended-only" type="checkbox"> Recommended only</label></div><button id="clear-filters" class="button clear-filters" type="button">Clear all filters</button></div><p class="catalog-count" id="result-count" role="status">{all_count}</p><noscript><p class="no-script-note">Search and filters need JavaScript. Browse by category or scan all tools below.</p></noscript>
     <section class="recommendation-region" id="recommended-region" aria-labelledby="recommended-heading"><div class="catalog-section-heading"><h2 id="recommended-heading">Recommended</h2><span class="catalog-count" id="recommended-count">{tool_count(len(recommended))}</span></div><div class="catalog-grid" id="recommended-tools">{''.join(item[3] for item in recommended)}</div><p class="recommendation-empty" id="no-recommended"{no_recommendations}>No tools are currently designated Recommended. Browse all tools below.</p><p class="recommendation-empty" id="recommended-empty" hidden>No Recommended tools match these filters.</p><button id="show-all-tools" class="button" type="button" hidden>Show all matching tools</button>{recommendation_context}</section>
     <section class="category-navigation-region" aria-labelledby="category-navigation-heading"><h2 id="category-navigation-heading">Browse by category</h2><nav class="category-navigation" id="category-navigation" aria-label="Tool categories" hidden>{all_tile}{''.join(tiles)}</nav><noscript><nav class="category-navigation" aria-label="Browse by category">{fallback_all_tile}{''.join(fallback_tiles)}</nav></noscript></section>
-    <section class="other-tools-region" id="other-tools" aria-labelledby="other-tools-heading"><div class="catalog-section-heading"><h2 id="other-tools-heading">{other_heading}</h2><span class="catalog-count" id="other-count">{tool_count(len(others))}</span></div><div id="other-tool-groups">{''.join(groups)}</div></section>
+    <section class="other-tools-region" id="other-tools" aria-labelledby="other-tools-heading"><div class="catalog-section-heading"><h2 id="other-tools-heading">{other_heading}</h2><span class="catalog-count" id="other-count">{tool_count(len(others))}</span></div><div id="other-tool-groups"><div class="catalog-grid" id="other-tools-by-name" hidden></div>{''.join(groups)}</div></section>
     {empty_state}<p class="catalog-note">Descriptions and declared platforms come from the tools' own manifest snapshots. A listing does not establish installation or usability in your environment. Expand an entry to inspect its source revision and refresh time.</p></section>
     <section class="section two-col" id="discovery"><div><p class="eyebrow">Let your agent help</p><h2>One skill.<br>The whole catalog.</h2><p style="margin-top:24px">Ask your agent to find a Smart Tool for your task. It can inspect the manifest, check the local environment, and follow the selected tool's own guidance.</p></div><div class="callout"><h3>Install the skill.</h3>{code_box(SKILL_INSTALL,'Terminal','install')}<p class="note">This installs guidance for your agent, not the tools or their credentials.</p>{link(repo_url('overview')+SKILL_PATH,'Read the skill','text-link')}</div></section>'''
 

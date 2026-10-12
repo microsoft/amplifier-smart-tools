@@ -10,11 +10,21 @@ const script = fs.readFileSync(path.join(__dirname, '../theme/site.js'), 'utf8')
 function element(dataset = {}) {
   return {
     dataset, value: '', checked: false, hidden: false, textContent: '', listeners: {},
+    parentElement: null,
     attributes: {}, children: [],
     addEventListener(event, callback) { this.listeners[event] = callback; },
     dispatch(event) { this.listeners[event]?.({ target: this, type: event }); },
     focus() { this.focused = true; },
     setAttribute(name, value) { this.attributes[name] = value; },
+    appendChild(child) {
+      if (child.parentElement) {
+        const oldIndex = child.parentElement.children.indexOf(child);
+        if (oldIndex !== -1) child.parentElement.children.splice(oldIndex, 1);
+      }
+      this.children.push(child);
+      child.parentElement = this;
+      return child;
+    },
     querySelector(selector) { return this.children.find(child => child.selector === selector) || null; },
     querySelectorAll(selector) { return this.children.filter(child => child.selector === selector); },
   };
@@ -26,29 +36,49 @@ function counter(selector) {
   return node;
 }
 
-function catalog({ legacy = false, zeroRecommendations = false } = {}) {
+function catalog({ legacy = false, zeroRecommendations = false, twoRecommendations = false } = {}) {
+  const card = (dataset, heading = dataset.name || dataset.tool) => {
+    const result = element(dataset);
+    const title = element();
+    title.selector = 'h2';
+    title.textContent = heading;
+    result.children.push(title);
+    return result;
+  };
   const cards = zeroRecommendations ? [
-    element({ tool: 'classified-alpha', search: 'research linux', platforms: 'linux', category: 'testing', recommended: 'false' }),
-    element({ tool: 'classified-beta', search: 'research macos', platforms: 'macos', category: 'testing', recommended: 'false' }),
-    element({ tool: 'unclassified', search: 'research windows', platforms: 'windows', category: '', recommended: 'false' }),
+    card({ tool: 'classified-alpha', name: 'Classified Alpha', search: 'research linux', platforms: 'linux', category: 'testing', recommended: 'false' }),
+    card({ tool: 'classified-beta', name: 'Classified Beta', search: 'research macos', platforms: 'macos', category: 'testing', recommended: 'false' }),
+    card({ tool: 'unclassified', name: 'Unclassified', search: 'research windows', platforms: 'windows', category: '', recommended: 'false' }),
   ] : [
-    element({ tool: 'recommended', search: 'isolated failure linux macos', platforms: 'linux macos', category: 'testing', recommended: 'true' }),
-    element({ tool: 'alternative', search: 'isolated failure linux', platforms: 'linux', category: 'testing', recommended: 'false' }),
-    element({ tool: 'authoring', search: 'create tool macos', platforms: 'macos', category: 'authoring', recommended: 'false' }),
-    element({ tool: 'legacy', search: 'failure video windows', platforms: 'windows', category: '', recommended: 'false' }),
+    card({ tool: 'recommended', name: 'Recommended', search: 'isolated failure linux macos', platforms: 'linux macos', category: 'testing', recommended: 'true' }),
+    card({ tool: 'alternative', name: 'echo', search: 'isolated failure linux', platforms: 'linux', category: 'testing', recommended: 'false' }),
+    card({ tool: 'authoring', name: '', search: 'create tool macos', platforms: 'macos', category: 'authoring', recommended: 'false' }, 'Echo'),
+    card({ tool: 'legacy', name: 'Able', search: 'failure video windows', platforms: 'windows', category: '', recommended: 'false' }),
+    ...(twoRecommendations ? [
+      card({ tool: 'recommended-two', name: 'Another Recommended', search: 'create tool macos', platforms: 'macos', category: 'authoring', recommended: 'true' }),
+    ] : []),
   ];
   const ids = Object.fromEntries([
     'tool-search', 'platform', 'result-count', 'empty-results', 'clear-filters',
     ...(legacy ? [] : [
-      'catalog-filters', 'category-navigation', 'category', 'recommended-only',
+      'catalog-filters', 'category-navigation', 'category', 'tool-sort', 'other-tools-by-name',
+      'recommended-tools',
+      'recommended-only',
       'recommended-count', 'other-count', 'other-tools', 'no-recommended',
       'recommended-empty', 'show-all-tools',
     ]),
   ].map(id => [id, element()]));
   ids['empty-results'].hidden = true;
   ids['clear-filters'].textContent = legacy ? 'Clear filters' : 'Clear all filters';
+  const recommendedGrid = ids['recommended-tools'];
+  const nameGrid = ids['other-tools-by-name'];
+  if (!legacy) {
+    ids['tool-sort'].value = 'category';
+    nameGrid.hidden = true;
+  }
 
   const groups = [];
+  const groupGrids = [];
   if (!legacy) {
     ids['catalog-filters'].hidden = true;
     ids['category-navigation'].hidden = true;
@@ -61,9 +91,17 @@ function catalog({ legacy = false, zeroRecommendations = false } = {}) {
         (card.dataset.category || '__unclassified__') === category);
       if (!groupCards.length) continue;
       const group = element({ categoryGroup: category });
-      group.children.push(counter('.group-count'));
-      group.querySelectorAll = selector => selector === '[data-tool]' ? groupCards : [];
+      const grid = element();
+      group.appendChild(grid);
+      const groupCount = counter('.group-count');
+      group.querySelector = selector => selector === '.group-count' ? groupCount : null;
+      group.grid = grid;
+      for (const groupCard of groupCards) grid.appendChild(groupCard);
       groups.push(group);
+      groupGrids.push(grid);
+    }
+    for (const recommended of cards.filter(card => card.dataset.recommended === 'true')) {
+      recommendedGrid.appendChild(recommended);
     }
   }
 
@@ -71,7 +109,7 @@ function catalog({ legacy = false, zeroRecommendations = false } = {}) {
   if (!legacy) {
     for (const identity of ['', 'authoring', 'testing']) {
       const button = element({ categoryFilter: identity });
-      button.children.push(counter('.category-tile-count'));
+      button.appendChild(counter('.category-tile-count'));
       categoryButtons.push(button);
     }
   }
@@ -86,11 +124,21 @@ function catalog({ legacy = false, zeroRecommendations = false } = {}) {
     },
   };
   vm.runInNewContext(script, { document });
+  const originalParents = new Map(cards
+    .filter(card => card.dataset.recommended !== 'true')
+    .map(card => [card, card.parentElement]));
   return {
-    cards, ids, groups, categoryButtons,
+    cards, ids, groups, groupGrids, categoryButtons, originalParents, recommendedGrid, nameGrid,
     group(category) { return groups.find(group => group.dataset.categoryGroup === category); },
     button(identity) { return categoryButtons.find(button => button.dataset.categoryFilter === identity); },
     visible() { return cards.filter(card => !card.hidden).map(card => card.dataset.tool); },
+    placed() {
+      return [
+        ...recommendedGrid.children.filter(child => child.dataset.tool),
+        ...nameGrid.children.filter(child => child.dataset.tool),
+        ...groupGrids.flatMap(grid => grid.children.filter(child => child.dataset.tool)),
+      ];
+    },
     set(id, value, event) { ids[id].value = value; ids[id].dispatch(event); },
   };
 }
@@ -101,11 +149,84 @@ test('recommendations and ordinary tools start in separate visible regions with 
   assert.equal(view.ids['recommended-only'].checked, false);
   assert.equal(view.ids['catalog-filters'].hidden, false);
   assert.equal(view.ids['category-navigation'].hidden, false);
+  assert.equal(view.ids['tool-sort'].value, 'category');
+  assert.equal(view.nameGrid.hidden, true);
   assert.equal(view.ids['result-count'].textContent, '4 tools');
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
   assert.equal(view.ids['other-count'].textContent, '3 tools');
   assert.equal(view.ids['empty-results'].hidden, true);
   assert.deepEqual(view.groups.map(group => group.hidden), [false, false, false]);
+});
+
+test('Name is a global stable alphabetical list; Category restores original groups without duplicates', () => {
+  const view = catalog();
+  const originalParents = new Map(view.originalParents);
+  view.set('tool-sort', 'name', 'change');
+
+  assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
+    ['legacy', 'alternative', 'authoring']);
+  assert.deepEqual(view.recommendedGrid.children.map(card => card.dataset.tool), ['recommended']);
+  assert.deepEqual(view.groups.map(group => group.hidden), [true, true, true]);
+  assert.equal(view.ids['result-count'].textContent, '4 tools');
+  assert.equal(view.ids['other-count'].textContent, '3 tools');
+  assert.deepEqual(view.placed().map(card => card.dataset.tool),
+    ['recommended', 'legacy', 'alternative', 'authoring']);
+  assert.equal(new Set(view.placed()).size, view.cards.length);
+
+  view.set('tool-sort', 'category', 'change');
+  assert.equal(view.nameGrid.hidden, true);
+  assert.deepEqual(view.groups.map(group => group.hidden), [false, false, false]);
+  for (const [card, parent] of originalParents) assert.equal(card.parentElement, parent);
+  assert.deepEqual(view.placed().map(card => card.dataset.tool),
+    ['recommended', 'authoring', 'alternative', 'legacy']);
+  assert.equal(new Set(view.placed()).size, view.cards.length);
+});
+
+test('both Recommended cards stay in their own region above the globally sorted ordinary tools', () => {
+  const view = catalog({ twoRecommendations: true });
+  view.set('tool-sort', 'name', 'change');
+
+  assert.deepEqual(view.recommendedGrid.children.map(card => card.dataset.tool),
+    ['recommended', 'recommended-two']);
+  assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
+    ['legacy', 'alternative', 'authoring']);
+  assert.deepEqual(view.placed().slice(0, 2).map(card => card.dataset.tool),
+    ['recommended', 'recommended-two']);
+  assert.equal(new Set(view.placed()).size, view.cards.length);
+});
+
+test('changing sort preserves all four filters and their counts', () => {
+  const view = catalog();
+  view.set('tool-search', 'failure', 'input');
+  view.set('platform', 'linux', 'change');
+  view.set('category', 'testing', 'change');
+  view.set('tool-sort', 'name', 'change');
+
+  assert.equal(view.ids['tool-search'].value, 'failure');
+  assert.equal(view.ids.platform.value, 'linux');
+  assert.equal(view.ids.category.value, 'testing');
+  assert.equal(view.ids['recommended-only'].checked, false);
+  assert.deepEqual(view.visible(), ['recommended', 'alternative']);
+  assert.equal(view.ids['result-count'].textContent, '2 tools');
+  assert.equal(view.ids['recommended-count'].textContent, '1 tool');
+  assert.equal(view.ids['other-count'].textContent, '1 tool');
+  assert.equal(view.group('testing').querySelector('.group-count').textContent, '1 tool');
+  assert.equal(view.button('testing').attributes['aria-pressed'], 'true');
+  assert.deepEqual(view.nameGrid.children.filter(card => !card.hidden).map(card => card.dataset.tool),
+    ['alternative']);
+
+  view.ids['recommended-only'].checked = true;
+  view.ids['recommended-only'].dispatch('change');
+  assert.equal(view.ids['tool-sort'].value, 'name');
+  assert.deepEqual(view.visible(), ['recommended']);
+  assert.equal(view.ids['result-count'].textContent, '1 tool');
+  assert.equal(view.ids['other-count'].textContent, '0 tools');
+  assert.equal(view.nameGrid.hidden, true);
+  view.ids['recommended-only'].checked = false;
+  view.ids['recommended-only'].dispatch('change');
+  assert.equal(view.ids['tool-sort'].value, 'name');
+  assert.deepEqual(view.visible(), ['recommended', 'alternative']);
+  assert.equal(view.nameGrid.hidden, false);
 });
 
 test('category tiles update the native select, aria-pressed, group counts, and group visibility', () => {
@@ -222,6 +343,7 @@ test('tile counts respond to keyword, platform, and Recommended-only filters', (
 
 test('clear resets filters and returns focus to search', () => {
   const view = catalog();
+  view.set('tool-sort', 'name', 'change');
   view.set('category', 'testing', 'change');
   view.set('platform', 'windows', 'change');
   view.set('tool-search', 'no-such-term', 'input');
@@ -230,11 +352,15 @@ test('clear resets filters and returns focus to search', () => {
   view.ids['clear-filters'].dispatch('click');
   for (const id of ['tool-search', 'platform', 'category']) assert.equal(view.ids[id].value, '');
   assert.equal(view.ids['recommended-only'].checked, false);
+  assert.equal(view.ids['tool-sort'].value, 'name');
   assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy']);
   assert.equal(view.ids['empty-results'].hidden, true);
   assert.equal(view.ids['result-count'].textContent, '4 tools');
   assert.equal(view.ids['tool-search'].focused, true);
   assert.equal(view.categoryButtons[0].attributes['aria-pressed'], 'true');
+  assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
+    ['legacy', 'alternative', 'authoring']);
+  assert.deepEqual(view.groups.map(group => group.hidden), [true, true, true]);
 });
 
 test('legacy catalog without category controls remains filterable', () => {
