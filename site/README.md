@@ -107,37 +107,37 @@ means catalog maintainers selected this tool as a preferred starting point for i
 category at the recorded source revision. Selection is not certification or a claim that
 specification conformance or task outcomes were checked. Any review results and scope
 limitations are stated only when recorded. A snapshot is point-in-time; refreshing it does
-not renew the designation. Each Recommended card keeps a keyboard-accessible revision
-disclosure.
+not renew the designation. Recommended is a plain, noninteractive badge. Source revision
+and refresh details remain in the existing optional “Full description and source”
+disclosure; the badge does not expand or link to recommendation-specific copy.
 
-The catalog keeps a distinct Recommended region above Other tools. Each heading and count
-remains visible when filters leave that section with zero matches. A short sentence says
-that recommendations are maintainer-selected starting points at recorded revisions, not
-quality certification. A compact, closed-by-default “What does Recommended mean?” details
-disclosure under that heading explains the selection and its limits; each Recommended
-badge links to it. Each card also keeps its keyboard-accessible source-revision disclosure.
-An empty Recommended section says “No Recommended tools match these filters.”
+The catalog places Recommended above Tools. The Recommended region is hidden whenever
+there are no matching effective recommendations, including the initial server-rendered
+page when none are effective. It has no empty-state placeholder. Ordinary tools remain
+grouped by category by default or can be shown in one global alphabetical Name list.
+Recommended cards stay separate and ordinary cards are not cloned.
 
-One control bar sits above both result sections. Search, category, and platform filter
-both sections; “Other tool order” changes only ordinary tools. The bar has one “Clear
-filters” action, and clearing filters preserves the selected order. Category scope appears
-as a short helper for the selected option rather than a wall of all category descriptions;
-it is hidden when “All categories” is selected. The “Not yet classified” option appears
-only when at least one current entry is unclassified. At phone widths, Search and Category
-occupy full rows, Platform and Other tool order share a row, and Clear filters remains at
-least 44px tall. Category labels remain visible on every card and searchable with displayed
-tool names.
-“Other tool order” defaults to category groups and can show ordinary tools in one global
-alphabetical Name list; Recommended cards remain separate and ordinary cards are not cloned.
-Counts use a live status for all matches and separate counts for both sections, including
-zero. Section-specific empty messages remain in place so users can see which section has no
-matches.
+One control bar sits above all results: Search, Category, Platform, Sort by (Category or
+Name), and one Clear filters action. Search, category, and platform filter both regions;
+sorting changes only Tools, and clearing filters preserves the selected sort. Category
+scopes remain registry metadata and are not inserted into the control bar or displayed
+when a category is selected. “Not yet classified” appears only when at least one current
+entry is unclassified. Native select controls keep their dimensions as values change. At
+phone widths, Search spans the bar, Category and Platform share a two-column row, and Sort
+by and Clear filters share the next row. Category labels remain visible on every card and
+searchable with displayed tool names.
 
-Without JavaScript, the control bar and Name list stay hidden, while all server-rendered
-cards remain visible in their two sections and ordinary category groups. Category group
-headings are noninteractive, and there is no second category-navigation area.
+The all-results count is a live status; Recommended and Tools have separate counts. If
+Recommended matches exist but no Tools do, Tools shows “No tools match these filters.”
+When there are no matching tools at all, one global empty message replaces section-specific
+empty messages. Without JavaScript, the filter bar and Name list stay hidden, all
+server-rendered cards remain visible, and a zero-card Recommended region is hidden. Ordinary
+category group headings are noninteractive, with no second category-navigation area.
 
-With a category registry, every card names its category and current recommendation state: “Category: {label}” with “Recommended,” “Recommendation needs review,” or “Not currently recommended.” Cards without a listing show “Category: Not yet classified” and “Not currently recommended.” A legacy catalog without a registry keeps its existing card markup.
+With a category registry, every card names its category. Effective recommendations use a
+“Recommended” badge and stale designations use “Recommendation needs review”; ordinary
+cards have no recommendation-status badge. Cards without a listing show “Category: Not yet
+classified.” A legacy catalog without a registry keeps its existing card markup.
 
 Tool creators do not nominate or select entries; catalog maintainers make those
 decisions. Creators may submit a source pointer and optional ordinary category with
@@ -148,14 +148,6 @@ decisions. Creators may submit a source pointer and optional ordinary category w
 The normative maintainer roles and designation, renewal, replacement, and withdrawal
 procedures live in the catalog's
 [maintainer curation guide](https://github.com/microsoft/amplifier-smart-tools-catalog/blob/main/docs/maintainers.md).
-
-The page supports fit-first selection and a neutral unclassified state. Recommended
-tools appear once in their own region; other tools are grouped under category headings,
-with unclassified tools under “Not yet classified,” or sorted globally by name. A single
-control bar above both sections owns Search, category, and platform filters, plus ordering
-for Other tools. Its scope is explicit, one selected-category helper avoids a persistent
-nine-category text wall, and a single clear action resets filters without changing order.
-All cards remain usable without JavaScript.
 
 `site/sync_theme.py` copies the helper with the renderer, CSS, JavaScript, family registry, license, and shared motion assets. Review the synchronized diff and run a build in the target catalog before adoption; do not update only a vendored theme copy.
 

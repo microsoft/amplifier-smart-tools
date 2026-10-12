@@ -20,7 +20,6 @@ const search = document.getElementById('tool-search');
 if (search) {
   const platform = document.getElementById('platform');
   const category = document.getElementById('category');
-  const categoryScope = document.getElementById('category-scope');
   const toolSort = document.getElementById('tool-sort');
   const filters = document.getElementById('catalog-filters');
   const cards = [...document.querySelectorAll('[data-tool]')];
@@ -31,10 +30,10 @@ if (search) {
   const count = document.getElementById('result-count');
   const recommendedCount = document.getElementById('recommended-count');
   const otherCount = document.getElementById('other-count');
+  const recommendedRegion = document.getElementById('recommended-region');
   const otherTools = document.getElementById('other-tools');
   const otherEmpty = document.getElementById('other-empty');
   const empty = document.getElementById('empty-results');
-  const recommendedEmpty = document.getElementById('recommended-empty');
   const clearFilters = document.getElementById('clear-filters');
   const plural = total => `${total} ${total === 1 ? 'tool' : 'tools'}`;
   function categoryOf(card) {
@@ -68,12 +67,6 @@ if (search) {
   }
   function filter() {
     const nameSorted = applySort();
-    if (categoryScope && category) {
-      const selected = category.options[category.selectedIndex];
-      const selectedScope = category.value ? selected?.dataset.scope || '' : '';
-      categoryScope.textContent = selectedScope;
-      categoryScope.hidden = !selectedScope;
-    }
     const baseMatches = new Map(cards.map(card => [card, matchesBase(card)]));
     const visibleCards = cards.filter(card => baseMatches.get(card) &&
       (!category || !category.value || categoryOf(card) === category.value));
@@ -85,6 +78,7 @@ if (search) {
     count.textContent = plural(visibleCards.length);
     if (recommendedCount) recommendedCount.textContent = plural(visibleRecommended);
     if (otherCount) otherCount.textContent = plural(visibleOther);
+    if (recommendedRegion) recommendedRegion.hidden = visibleRecommended === 0;
 
     for (const group of groups) {
       const groupCards = ordinaryCards.filter(card =>
@@ -97,8 +91,7 @@ if (search) {
     if (otherTools) otherTools.hidden = false;
     if (nameGrid) nameGrid.hidden = !nameSorted || visibleOther === 0;
     if (empty) empty.hidden = visibleCards.length !== 0;
-    if (recommendedEmpty) recommendedEmpty.hidden = visibleRecommended !== 0;
-    if (otherEmpty) otherEmpty.hidden = visibleOther !== 0;
+    if (otherEmpty) otherEmpty.hidden = visibleOther !== 0 || visibleRecommended === 0;
   }
   search.addEventListener('input', filter);
   platform.addEventListener('change', filter);

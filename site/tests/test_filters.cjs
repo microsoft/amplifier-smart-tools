@@ -62,26 +62,13 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
   const ids = Object.fromEntries([
     'tool-search', 'platform', 'result-count', 'empty-results', 'clear-filters',
     ...(legacy ? [] : [
-      'catalog-filters', 'category', 'category-scope', 'tool-sort', 'other-tools-by-name',
+      'catalog-filters', 'category', 'tool-sort', 'other-tools-by-name',
       'recommended-tools', 'recommended-count', 'other-count', 'other-tools',
-      'recommended-empty', 'other-empty',
+      'recommended-region', 'other-empty',
     ]),
   ].map(id => [id, element()]));
   if (!legacy) {
     const categorySelect = ids.category;
-    categorySelect.options = [
-      { value: '', dataset: { scope: '' } },
-      { value: 'authoring', dataset: { scope: 'Build and maintain smart tools.' } },
-      { value: 'testing', dataset: { scope: 'Create isolated test environments.' } },
-      { value: '__unclassified__', dataset: { scope: 'Tools without an assigned category.' } },
-    ];
-    Object.defineProperty(categorySelect, 'value', {
-      get() { return this._value || ''; },
-      set(value) {
-        this._value = value;
-        this.selectedIndex = Math.max(0, this.options.findIndex(option => option.value === value));
-      },
-    });
     categorySelect.value = '';
   }
   ids['empty-results'].hidden = true;
@@ -98,8 +85,8 @@ function catalog({ legacy = false, zeroRecommendations = false, twoRecommendatio
   if (!legacy) {
     ids['catalog-filters'].hidden = true;
     ids['other-tools'].hidden = false;
-    ids['recommended-empty'].hidden = true;
     ids['other-empty'].hidden = true;
+    ids['recommended-region'].hidden = zeroRecommendations;
     for (const category of ['authoring', 'testing', '__unclassified__']) {
       const groupCards = cards.filter(card => card.dataset.recommended !== 'true' &&
         (card.dataset.category || '__unclassified__') === category);
@@ -150,15 +137,13 @@ test('recommendations and ordinary tools start in separate visible regions with 
   const view = catalog();
   assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy']);
   assert.equal(view.ids['catalog-filters'].hidden, false);
-  assert.equal(view.ids['category-scope'].textContent, '');
-  assert.equal(view.ids['category-scope'].hidden, true);
   assert.equal(view.ids['tool-sort'].value, 'category');
   assert.equal(view.nameGrid.hidden, true);
   assert.equal(view.ids['result-count'].textContent, '4 tools');
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
   assert.equal(view.ids['other-count'].textContent, '3 tools');
   assert.equal(view.ids['empty-results'].hidden, true);
-  assert.equal(view.ids['recommended-empty'].hidden, true);
+  assert.equal(view.ids['recommended-region'].hidden, false);
   assert.equal(view.ids['other-empty'].hidden, true);
   assert.deepEqual(view.groups.map(group => group.hidden), [false, false, false]);
 });
@@ -200,7 +185,7 @@ test('both Recommended cards stay in their own region above the globally sorted 
   assert.equal(new Set(view.placed()).size, view.cards.length);
 });
 
-test('ordering changes only Other tools while shared filters retain their counts', () => {
+test('ordering changes only Tools while shared filters retain their counts', () => {
   const view = catalog();
   view.set('tool-search', 'failure', 'input');
   view.set('platform', 'linux', 'change');
@@ -210,8 +195,6 @@ test('ordering changes only Other tools while shared filters retain their counts
   assert.equal(view.ids['tool-search'].value, 'failure');
   assert.equal(view.ids.platform.value, 'linux');
   assert.equal(view.ids.category.value, 'testing');
-  assert.equal(view.ids['category-scope'].textContent, 'Create isolated test environments.');
-  assert.equal(view.ids['category-scope'].hidden, false);
   assert.deepEqual(view.visible(), ['recommended', 'alternative']);
   assert.equal(view.ids['result-count'].textContent, '2 tools');
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
@@ -219,17 +202,16 @@ test('ordering changes only Other tools while shared filters retain their counts
   assert.equal(view.group('testing').querySelector('.group-count').textContent, '1 tool');
   assert.deepEqual(view.nameGrid.children.filter(card => !card.hidden).map(card => card.dataset.tool),
     ['alternative']);
-  assert.equal(view.ids['recommended-empty'].hidden, true);
+  assert.equal(view.ids['recommended-region'].hidden, false);
   assert.equal(view.ids['other-empty'].hidden, true);
 });
 
-test('category selection updates its scope helper and ordinary group counts', () => {
+test('category selection updates counts without inserting category-scope copy', () => {
   const view = catalog();
   view.set('category', 'testing', 'change');
   assert.equal(view.ids.category.value, 'testing');
-  assert.equal(view.ids['category-scope'].textContent, 'Create isolated test environments.');
-  assert.equal(view.ids['category-scope'].hidden, false);
   assert.deepEqual(view.visible(), ['recommended', 'alternative']);
+  assert.equal(view.ids['recommended-region'].hidden, false);
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
   assert.equal(view.ids['other-count'].textContent, '1 tool');
   assert.equal(view.group('testing').querySelector('.group-count').textContent, '1 tool');
@@ -237,12 +219,10 @@ test('category selection updates its scope helper and ordinary group counts', ()
 
   view.set('category', '', 'change');
   assert.equal(view.ids.category.value, '');
-  assert.equal(view.ids['category-scope'].textContent, '');
-  assert.equal(view.ids['category-scope'].hidden, true);
   assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy']);
 });
 
-test('shared filters can leave either results section empty without hiding it', () => {
+test('zero matching recommendations hide that region; global empty state is not duplicated', () => {
   const view = catalog();
   view.set('category', 'testing', 'change');
   view.set('tool-search', '  ISOLATED   failure ', 'input');
@@ -251,7 +231,7 @@ test('shared filters can leave either results section empty without hiding it', 
   assert.equal(view.ids['result-count'].textContent, '1 tool');
   assert.equal(view.ids['recommended-count'].textContent, '1 tool');
   assert.equal(view.ids['other-count'].textContent, '0 tools');
-  assert.equal(view.ids['recommended-empty'].hidden, true);
+  assert.equal(view.ids['recommended-region'].hidden, false);
   assert.equal(view.ids['other-empty'].hidden, false);
   assert.equal(view.ids['other-tools'].hidden, false);
 
@@ -259,17 +239,17 @@ test('shared filters can leave either results section empty without hiding it', 
   assert.deepEqual(view.visible(), []);
   assert.equal(view.ids['result-count'].textContent, '0 tools');
   assert.equal(view.ids['empty-results'].hidden, false);
-  assert.equal(view.ids['recommended-empty'].hidden, false);
-  assert.equal(view.ids['other-empty'].hidden, false);
+  assert.equal(view.ids['recommended-region'].hidden, true);
+  assert.equal(view.ids['other-empty'].hidden, true);
   assert.equal(view.ids['other-tools'].hidden, false);
 });
 
-test('zero recommendations retain their result header and show both section totals', () => {
+test('zero recommendations hide the whole region and omit a recommendation empty message', () => {
   const view = catalog({ zeroRecommendations: true });
   assert.deepEqual(view.visible(), ['classified-alpha', 'classified-beta', 'unclassified']);
   assert.equal(view.ids['recommended-count'].textContent, '0 tools');
   assert.equal(view.ids['other-count'].textContent, '3 tools');
-  assert.equal(view.ids['recommended-empty'].hidden, false);
+  assert.equal(view.ids['recommended-region'].hidden, true);
   assert.equal(view.ids['other-empty'].hidden, true);
   assert.equal(view.ids['other-tools'].hidden, false);
 
@@ -279,16 +259,13 @@ test('zero recommendations retain their result header and show both section tota
   assert.equal(view.ids['recommended-count'].textContent, '0 tools');
   assert.equal(view.ids['other-count'].textContent, '0 tools');
   assert.equal(view.ids['empty-results'].hidden, false);
-  assert.equal(view.ids['recommended-empty'].hidden, false);
-  assert.equal(view.ids['other-empty'].hidden, false);
+  assert.equal(view.ids['other-empty'].hidden, true);
 });
 
 test('category and shared filters keep unclassified tools discoverable', () => {
   const view = catalog();
   view.set('category', '__unclassified__', 'change');
   assert.deepEqual(view.visible(), ['legacy']);
-  assert.equal(view.ids['category-scope'].textContent, 'Tools without an assigned category.');
-  assert.equal(view.ids['category-scope'].hidden, false);
   view.set('tool-search', 'failure', 'input');
   view.set('platform', 'windows', 'change');
   assert.deepEqual(view.visible(), ['legacy']);
@@ -318,8 +295,6 @@ test('clear resets filters and returns focus to search', () => {
   view.set('tool-search', 'no-such-term', 'input');
   view.ids['clear-filters'].dispatch('click');
   for (const id of ['tool-search', 'platform', 'category']) assert.equal(view.ids[id].value, '');
-  assert.equal(view.ids['category-scope'].textContent, '');
-  assert.equal(view.ids['category-scope'].hidden, true);
   assert.equal(view.ids['tool-sort'].value, 'name');
   assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy']);
   assert.equal(view.ids['empty-results'].hidden, true);
