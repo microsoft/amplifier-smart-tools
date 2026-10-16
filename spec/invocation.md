@@ -100,8 +100,8 @@ file cannot, such as whether a provider is configured.
 model-backed, under one line pointing at `<tool> <capability> --help`. That is the capability's skill,
 required for every capability: the same shape as the tool's, scoped to one capability, and
 carrying what the tool's skill leaves out: when to use it, whether it is deterministic or
-model-backed, every argument and what it is for, a worked invocation, the result, and the
-failures. `<tool> <capability> -h` is the terse summary of that one capability. The tool's
+model-backed, every argument and what it is for, a worked invocation, and the result.
+`<tool> <capability> -h` is the terse summary of that one capability. The tool's
 skill says the capability skills exist, so an agent reading it knows to ask for them. The
 tiers follow Agent Skills' progressive disclosure: the manifest description decides whether
 to look, the tool's skill decides which capability, the capability's skill decides how to
@@ -111,7 +111,7 @@ call it.
 path resolves after installation, so the files ship inside the package. Omitted when there
 is nothing to list.
 
-The library exposes the skill and each piece it is built from. The CLI prints it and adds nothing.
+The library exposes the skill. The CLI prints it and adds nothing.
 
 ### Shipping an Agent Skill alongside
 
