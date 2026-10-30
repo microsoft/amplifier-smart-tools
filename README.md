@@ -1,13 +1,14 @@
 # Amplifier Smart Tools
 
 Smart Tools is a format for packaging domain expertise into tools that any agent can use.
-Learn more and explore available tools on the [website](https://microsoft.github.io/amplifier-smart-tools/).
+Check out our recommended Smart Tools: [Reality Check](https://github.com/microsoft/amplifier-smart-tool-reality-check) and the [Digital Twin Universe](https://github.com/microsoft/amplifier-smart-tool-digital-twin-universe).
+and explore available tools on the [catalog](https://microsoft.github.io/amplifier-smart-tools-catalog/).
 
-To get started install the [Smart Tools skill](skills/amplifier-smart-tools/SKILL.md) which helps your agent find, use, and create Smart Tools:
+To get started, ask your agent to install the [Smart Tools skill](skills/amplifier-smart-tools/SKILL.md), which helps it find, use, and create Smart Tools:
 
-```bash
-npx skills add microsoft/amplifier-smart-tools
-```
+> Install the agent skill from https://github.com/microsoft/amplifier-smart-tools.
+
+For manual setup, see [Installation](#installation).
 
 ## What are Smart Tools?
 
@@ -45,6 +46,29 @@ The caller does not have to be an agent as Skills and MCPs are usually used.
 Every smart tool is a library underneath, so apps, scripts, and jobs can integrate one directly.
 And not every capability is a smart one. A smart tool can also expose ordinary deterministic capabilities.
 
+### Installation
+
+Install the Smart Tools skill:
+
+```bash
+npx skills add microsoft/amplifier-smart-tools
+```
+
+### Installing in Amplifier
+
+For the Amplifier App CLI, you can add the behavior instead; it composes the skill into every new Amplifier session:
+
+```bash
+amplifier bundle add 'git+https://github.com/microsoft/amplifier-smart-tools@main#subdirectory=behaviors/smart-tools.yaml' --app
+```
+
+Start a new session and use `/skills` to confirm the skill is listed. Update with
+`amplifier update`, and stop composing it with:
+
+```bash
+amplifier bundle remove 'git+https://github.com/microsoft/amplifier-smart-tools@main#subdirectory=behaviors/smart-tools.yaml' --app
+```
+
 ## What's in this repository
 
 - **[spec/](spec/README.md)**: the specification, start here
@@ -69,21 +93,6 @@ tool's distribution root:
 
 ```bash
 uv run conformance/run.py path/to/your-smart-tool
-```
-
-### Installing in Amplifier
-
-For the Amplifier App CLI, you can add the behavior instead; it composes the skill into every new Amplifier session:
-
-```bash
-amplifier bundle add 'git+https://github.com/microsoft/amplifier-smart-tools@main#subdirectory=behaviors/smart-tools.yaml' --app
-```
-
-Start a new session and use `/skills` to confirm the skill is listed. Update with
-`amplifier update`, and stop composing it with:
-
-```bash
-amplifier bundle remove 'git+https://github.com/microsoft/amplifier-smart-tools@main#subdirectory=behaviors/smart-tools.yaml' --app
 ```
 
 ### Reference implementations
