@@ -2,7 +2,7 @@
 
 Smart Tools is a format for packaging domain expertise into tools that any agent can use.
 Check out our recommended Smart Tools: [Reality Check](https://github.com/microsoft/amplifier-smart-tool-reality-check) and the [Digital Twin Universe](https://github.com/microsoft/amplifier-smart-tool-digital-twin-universe).
-and explore available tools on the [catalog](https://microsoft.github.io/amplifier-smart-tools-catalog/).
+Explore all available tools in the [catalog](https://microsoft.github.io/amplifier-smart-tools-catalog/).
 
 To get started, ask your agent to install the [Smart Tools skill](skills/amplifier-smart-tools/SKILL.md), which helps it find, use, and create Smart Tools:
 
