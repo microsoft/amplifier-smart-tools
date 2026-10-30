@@ -6,6 +6,7 @@ lives in its own repository.
 ## Reference implementations
 
 - **[amplifier-smart-tool-digital-twin-universe](https://github.com/microsoft/amplifier-smart-tool-digital-twin-universe)**: Stands up isolated environments from a declarative profile using Docker Compose. An example of structing deterministic capabilities, smart capabilities, and dashboard with MCP App support.
+- **[amplifier-smart-tool-reality-check](https://github.com/microsoft/amplifier-smart-tool-reality-check)**: Checks that an app works the way a real user would experience it, and returns evidence for every finding. An example of one smart tool composing another (it uses the Digital Twin Universe as a library), long-running smart capabilities that can be followed and steered, and a web app with MCP App support.
 - **[amplifier-smart-tool-creator](https://github.com/microsoft/amplifier-smart-tool-creator)**: Creates, validates, and evaluates smart tools that follow this specification. Contains best practices across the board.
 - **[amplifier-smart-tool-tmux](https://github.com/microsoft/amplifier-smart-tool-tmux)**: A smart tool for managing tmux sessions across a machine. An example of the full smart tool shape: library-first package with a thin CLI, a `SMART_TOOL.md` manifest, deterministic verbs that run with no provider configured, and model-backed verbs.
 
