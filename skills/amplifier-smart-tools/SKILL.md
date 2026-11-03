@@ -65,8 +65,9 @@ not assume a host API, command, or permission is available.
    blockers; do not describe partial discovery as complete.
 5. **Check or install only as requested.** Follow documented, read-only checks first.
    Distinguish listed, installed, usable, and unverified; a PATH match or platform claim
-   is not proof. Every tool installs from Git; Python tools commonly use
-   `uv tool install git+<repository>`. Confirm an authorized install with its
+   is not proof. Every tool installs from Git; use the install command the tool documents,
+   which may pin a release tag, such as `uv tool install "<distribution> @ git+<repository>@<tag>"`
+   for a Python tool. Confirm an authorized install with its
    `deterministic_smoke` capability or documented check verb. Report the installed
    revision separately if it differs from the catalog-reviewed revision. Recommendation
    never bypasses host permissions or user authorization.
@@ -146,24 +147,11 @@ user's preferences to update tools (or skills).
    `smart-tool.json` names, on the installed ref.
 3. If the install is behind, automatically update the tool, except in the cases outlined above.
    Otherwise include a suggestion to the user to update the tool, but don't stop execution.
+   Follow the upgrade steps in the tool's `SMART_TOOL.md`. An install pinned to a release
+   tag stays on it, so `uv tool upgrade` does not move it; install again with the newer tag.
 4. If a tool ships an agent skill, update it along with the tool.
    If the host installed them with the `skills` CLI, `npx skills update` refreshes them (-g for global installs).
-
-Keep this skill up to date the same way. If the host installed it with the `skills` CLI, run `npx skills update amplifier-smart-tools`, adding `-g` for global installs.
-
-### Keep tools current
-
-Keep tools up to date for the user by default if the permission mode allows it.
-Do not try to get around restrictions or operate against the user's preferences to update tools (or skills).
-
-1. Run `<tool> -V` or similar to figure out the installed version.
-2. Read the upstream `version` from the tool's catalog snapshot `SMART_TOOL.md`. For a
-   tool outside the catalog, read it from the manifest that the repository's
-   `smart-tool.json` names, on the installed ref.
-3. If the install is behind, automatically update the tool, except in the cases outlined above.
-   Otherwise include a suggestion to the user to update the tool, but don't stop execution.
-4. If a tool ships an agent skill, update it along with the tool.
-   If the host installed them with the `skills` CLI, `npx skills update` refreshes them (-g for global).
+   A skill added at a tag (`owner/repo#<tag>`) stays on it; add it again with the newer tag.
 
 Keep this skill up to date the same way. If the host installed it with the `skills` CLI, run `npx skills update amplifier-smart-tools`, adding `-g` for global installs.
 
