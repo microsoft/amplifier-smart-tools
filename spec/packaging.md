@@ -17,6 +17,8 @@ else.
 Tools can be updated through the channel they were installed from.
 Each tool specifies its version and keeps it consistent across any pieces it exposes to users (ex. the lib, cli, optional skills, etc).
 For example, a tool installed with `uv tool install git+<repository>` is updated with `uv tool upgrade <distribution>`.
+A tool installed at a release tag, `git+<repository>@<tag>`, stays on that tag through `uv tool upgrade`, so it is
+updated by installing again with the newer tag.
 
 ## Ecosystem and runner
 
