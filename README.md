@@ -6,7 +6,7 @@ Explore all available tools in the [catalog](https://microsoft.github.io/amplifi
 
 To get started, ask your agent to install the [Smart Tools skill](skills/amplifier-smart-tools/SKILL.md), which helps it find, use, and create Smart Tools:
 
-> Install the agent skill from https://github.com/microsoft/amplifier-smart-tools.
+> Go to https://github.com/microsoft/amplifier-smart-tools and install it.
 
 For manual setup, see [Installation](#installation).
 
