@@ -65,9 +65,14 @@ not assume a host API, command, or permission is available.
    blockers; do not describe partial discovery as complete.
 5. **Check or install only as requested.** Follow documented, read-only checks first.
    Distinguish listed, installed, usable, and unverified; a PATH match or platform claim
-   is not proof. Every tool installs from Git; use the install command the tool documents,
-   which may pin a release tag, such as `uv tool install "<distribution> @ git+<repository>@<tag>"`
-   for a Python tool. Confirm an authorized install with its
+   is not proof. Install with a method the tool documents, such as a package manager,
+   a release binary, or a container image, and pick the one that fits the host and task.
+   Install the tool's agent skill, when it ships one, the way the tool documents it.
+   For the ref, prefer the release tag the tool documents, such as
+   `uv tool install "<distribution> @ git+<repository>@<tag>"`, then its latest release
+   tag, then its default branch. Use the catalog's recorded commit only when the user asks
+   for that exact revision and the installer accepts a commit; many Git and skill
+   installers accept only branch or tag names. Confirm an authorized install with its
    `deterministic_smoke` capability or documented check verb. Report the installed
    revision separately if it differs from the catalog-reviewed revision. Recommendation
    never bypasses host permissions or user authorization.
