@@ -1,4 +1,4 @@
-/* Executes production filtering against the server-rendered catalog's DOM contract. */
+/* Executes the production script against the DOM contract of the server-rendered pages. */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -6,389 +6,534 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 const script = fs.readFileSync(path.join(__dirname, '../theme/site.js'), 'utf8');
+const UNCLASSIFIED = '__unclassified__';
 
 function element(dataset = {}) {
   return {
-    dataset, value: '', checked: false, hidden: false, textContent: '', listeners: {},
-    options: [], selectedIndex: 0,
-    parentElement: null,
-    attributes: {}, children: [],
-    addEventListener(event, callback) { this.listeners[event] = callback; },
-    dispatch(event) { this.listeners[event]?.({ target: this, type: event }); },
-    focus() { this.focused = true; },
+    dataset, value: '', hidden: false, textContent: '', listeners: {}, attributes: {},
+    found: {}, ancestors: {}, box: { left: 0, top: 0, width: 0, height: 0 },
+    style: { values: {}, setProperty(name, value) { this.values[name] = value; } },
+    addEventListener(event, callback) { (this.listeners[event] ||= []).push(callback); },
+    dispatch(event, detail = {}) {
+      return Promise.all((this.listeners[event] || [])
+        .map(callback => callback({ target: this, type: event, ...detail })));
+    },
     setAttribute(name, value) { this.attributes[name] = value; },
-    appendChild(child) {
-      if (child.parentElement) {
-        const oldIndex = child.parentElement.children.indexOf(child);
-        if (oldIndex !== -1) child.parentElement.children.splice(oldIndex, 1);
-      }
-      this.children.push(child);
-      child.parentElement = this;
-      return child;
+    toggleAttribute(name, force) {
+      if (force) this.attributes[name] = '';
+      else delete this.attributes[name];
     },
-    querySelector(selector) { return this.children.find(child => child.selector === selector) || null; },
-    querySelectorAll(selector) { return this.children.filter(child => child.selector === selector); },
+    getBoundingClientRect() { return this.box; },
+    querySelector(selector) { return this.querySelectorAll(selector)[0] || null; },
+    querySelectorAll(selector) { return [].concat(this.found[selector] || []); },
+    closest(selector) { return this.ancestors[selector] || null; },
   };
 }
 
-function counter(selector) {
-  const node = element();
-  node.selector = selector;
-  return node;
-}
-
-function catalog({
-  legacy = false,
-  zeroRecommendations = false,
-  twoRecommendations = false,
-  duplicateCountFixture = false,
+/* Loads the script into a page holding the given elements by id and by selector. */
+function page({
+  ids = {}, found = {}, reducedMotion = false, narrow = false, clipboard, fetch, ClipboardItem,
 } = {}) {
-  const card = (dataset, heading = dataset.name || dataset.tool) => {
-    const result = element(dataset);
-    const title = element();
-    title.selector = 'h2';
-    title.textContent = heading;
-    result.children.push(title);
-    return result;
-  };
-  const allToolCards = duplicateCountFixture ? [
-    card({ tool: 'digital-twin-universe', name: 'Digital Twin Universe', search: 'digital twin test environments linux', platforms: 'linux', category: 'testing', recommended: 'true' }),
-    card({ tool: 'smart-tool-creator', name: 'Smart Tool Creator', search: 'smart tool development macos', platforms: 'macos', category: 'authoring', recommended: 'true' }),
-    card({ tool: 'ordinary', name: 'Ordinary', search: 'test environments linux', platforms: 'linux', category: 'testing', recommended: 'false' }),
-  ] : zeroRecommendations ? [
-    card({ tool: 'classified-alpha', name: 'Classified Alpha', search: 'research linux', platforms: 'linux', category: 'testing', recommended: 'false' }),
-    card({ tool: 'classified-beta', name: 'Classified Beta', search: 'research macos', platforms: 'macos', category: 'testing', recommended: 'false' }),
-    card({ tool: 'unclassified', name: 'Unclassified', search: 'unclassified research windows other', platforms: 'windows', category: '', recommended: 'false' }),
-  ] : [
-    card({ tool: 'recommended', name: 'Recommended', search: 'isolated failure linux macos test environments', platforms: 'linux macos', category: 'testing', recommended: 'true' }),
-    card({ tool: 'alternative', name: 'Alternative', search: 'isolated failure linux test environments', platforms: 'linux', category: 'testing', recommended: 'false' }),
-    card({ tool: 'authoring', name: '', search: 'echo create tool macos tool authoring', platforms: 'macos', category: 'authoring', recommended: 'false' }, 'Echo'),
-    card({ tool: 'legacy', name: 'Able', search: 'able failure video windows other', platforms: 'windows', category: '', recommended: 'false' }),
-    ...(twoRecommendations ? [
-      card({ tool: 'recommended-two', name: 'Another Recommended', search: 'create tool macos', platforms: 'macos', category: 'authoring', recommended: 'true' }),
-    ] : []),
-  ];
-  const featuredCards = legacy ? [] : allToolCards
-    .filter(item => item.dataset.recommended === 'true')
-    .map(item => card({ ...item.dataset }));
-  const cards = legacy ? allToolCards : [...featuredCards, ...allToolCards];
-  const ids = Object.fromEntries([
-    'tool-search', 'platform', 'result-count', 'empty-results', 'clear-filters',
-    ...(legacy ? [] : [
-      'catalog-filters', 'category', 'tool-sort', 'other-tools-by-name',
-      'recommended-tools', 'recommended-count', 'other-count', 'other-tools',
-      'recommended-region', 'other-empty',
-    ]),
-  ].map(id => [id, element()]));
-  if (!legacy) {
-    const categorySelect = ids.category;
-    categorySelect.value = '';
+  const view = { active: null, classes: new Set(), selected: null, location: null, timers: new Map() };
+  const elements = [...Object.values(ids), ...Object.values(found).flat()];
+  for (const node of elements.flatMap(node => [node, ...Object.values(node.found).flat()])) {
+    node.focus = () => { view.active = node; };
   }
-  ids['empty-results'].hidden = true;
-  ids['clear-filters'].textContent = 'Clear filters';
-  const recommendedGrid = ids['recommended-tools'];
-  const nameGrid = ids['other-tools-by-name'];
-  if (!legacy) {
-    ids['tool-sort'].value = 'category';
-    nameGrid.hidden = true;
-  }
-
-  const groups = [];
-  const groupGrids = [];
-  if (!legacy) {
-    ids['catalog-filters'].hidden = true;
-    ids['other-tools'].hidden = false;
-    ids['other-tools'].querySelectorAll = selector =>
-      selector === '[data-tool]' ? allToolCards : [];
-    ids['recommended-region'].querySelectorAll = selector =>
-      selector === '[data-tool]' ? featuredCards : [];
-    recommendedGrid.querySelectorAll = selector =>
-      selector === '[data-tool]' ? featuredCards : [];
-    ids['other-empty'].hidden = true;
-    ids['recommended-region'].hidden = zeroRecommendations;
-    for (const category of ['authoring', 'testing', '__unclassified__']) {
-      const groupCards = allToolCards.filter(card =>
-        (card.dataset.category || '__unclassified__') === category);
-      if (!groupCards.length) continue;
-      const group = element({ categoryGroup: category });
-      const grid = element();
-      group.appendChild(grid);
-      const groupCount = counter('.group-count');
-      group.querySelector = selector => selector === '.group-count' ? groupCount : null;
-      group.grid = grid;
-      for (const groupCard of groupCards) grid.appendChild(groupCard);
-      groups.push(group);
-      groupGrids.push(grid);
-    }
-    for (const recommended of featuredCards) recommendedGrid.appendChild(recommended);
-  }
-
   const document = {
+    documentElement: { classList: { add(name) { view.classes.add(name); } } },
     getElementById(id) { return ids[id] || null; },
-    querySelectorAll(selector) {
-      if (selector === '[data-tool]') return cards;
-      if (selector === '[data-category-group]') return groups;
-      return [];
-    },
+    querySelector(selector) { return this.querySelectorAll(selector)[0] || null; },
+    querySelectorAll(selector) { return [].concat(found[selector] || []); },
+    createRange() { return { selectNodeContents(node) { this.node = node; } }; },
   };
-  vm.runInNewContext(script, { document });
-  const originalParents = new Map(allToolCards.map(card => [card, card.parentElement]));
-  return {
-    cards, allToolCards, featuredCards, ids, groups, groupGrids, originalParents, recommendedGrid, nameGrid,
-    group(category) { return groups.find(group => group.dataset.categoryGroup === category); },
-    visible() { return allToolCards.filter(card => !card.hidden).map(card => card.dataset.tool); },
-    visibleFeatured() { return featuredCards.filter(card => !card.hidden).map(card => card.dataset.tool); },
-    placed() {
-      return [
-        ...recommendedGrid.children.filter(child => child.dataset.tool),
-        ...nameGrid.children.filter(child => child.dataset.tool),
-        ...groupGrids.flatMap(grid => grid.children.filter(child => child.dataset.tool)),
-      ];
-    },
-    set(id, value, event) { ids[id].value = value; ids[id].dispatch(event); },
+  view.preference = { matches: reducedMotion, addEventListener(_, callback) { this.changed = callback; } };
+  const media = {
+    '(prefers-reduced-motion: reduce)': view.preference,
+    '(max-width: 1100px)': { matches: narrow },
   };
+  const window = {
+    matchMedia(query) {
+      assert.ok(Object.hasOwn(media, query), query);
+      return media[query];
+    },
+    getSelection() {
+      return {
+        removeAllRanges() { view.selected = null; },
+        addRange(range) { view.selected = range.node; },
+      };
+    },
+    location: { assign(url) { view.location = url; } },
+  };
+  if (ClipboardItem) window.ClipboardItem = ClipboardItem;
+  const timers = {
+    setTimeout(callback, delay) {
+      const id = Symbol(delay);
+      view.timers.set(id, { callback, delay });
+      return id;
+    },
+    clearTimeout(id) { view.timers.delete(id); },
+  };
+  view.elapse = () => {
+    const due = [...view.timers.values()];
+    view.timers.clear();
+    for (const { callback } of due) callback();
+  };
+  vm.runInNewContext(script, { document, window, navigator: { clipboard }, fetch, Blob, ClipboardItem, ...timers });
+  return view;
 }
 
-test('recommendations and ordinary tools start in separate visible regions with live totals', () => {
-  const view = catalog({ duplicateCountFixture: true });
-  assert.deepEqual(view.visible(), ['digital-twin-universe', 'smart-tool-creator', 'ordinary']);
-  assert.deepEqual(view.visibleFeatured(), ['digital-twin-universe', 'smart-tool-creator']);
-  assert.equal(view.cards.length, 5);
-  assert.equal(new Set(view.cards.map(card => card.dataset.tool)).size, 3);
-  assert.equal(view.ids['catalog-filters'].hidden, false);
-  assert.equal(view.ids['tool-sort'].value, 'category');
-  assert.equal(view.nameGrid.hidden, true);
-  assert.equal(view.ids['result-count'].textContent, '3 tools');
-  assert.equal(view.ids['recommended-count'].textContent, '2 tools');
-  assert.equal(view.ids['other-count'].textContent, '3 tools');
-  assert.equal(view.allToolCards.filter(card => card.dataset.recommended === 'true').length, 2);
-  assert.equal(view.ids['empty-results'].hidden, true);
-  assert.equal(view.ids['recommended-region'].hidden, false);
-  assert.equal(view.ids['other-empty'].hidden, true);
-  assert.deepEqual(view.groups.map(group => group.hidden), [false, false]);
+function catalog({ registry = true, recommendations = true } = {}) {
+  const row = (tool, category, search) => element({ tool, category, search });
+  const rows = registry ? [
+    row('alternative', 'testing', 'alternative isolated failure linux test environments'),
+    row('echo', 'authoring', 'fixture-echo echo create tool macos tool authoring'),
+    row('unlisted', UNCLASSIFIED, 'unlisted failure video windows other'),
+    row('recommended', 'testing', 'recommended isolated failure linux macos test environments'),
+  ] : [
+    row('alternative', UNCLASSIFIED, 'alternative isolated failure linux'),
+    row('echo', UNCLASSIFIED, 'fixture-echo echo create tool macos'),
+    row('unlisted', UNCLASSIFIED, 'unlisted failure video windows'),
+    row('recommended', UNCLASSIFIED, 'recommended isolated failure linux macos'),
+  ];
+  const chips = ['', 'testing', 'authoring', UNCLASSIFIED].map(category => element({ category }));
+  chips[0].attributes['aria-pressed'] = 'true';
+  for (const chip of chips.slice(1)) chip.attributes['aria-pressed'] = 'false';
+  const ids = {
+    'tool-search': element(), 'store-search': element(), 'result-count': element(),
+    'empty-results': element(),
+  };
+  ids['store-search'].hidden = true;
+  ids['result-count'].textContent = `${rows.length} tools`;
+  ids['empty-results'].hidden = true;
+  const clear = element();
+  ids['empty-results'].found['[data-clear]'] = clear;
+  if (registry) {
+    ids['category-chips'] = element();
+    ids['category-chips'].hidden = true;
+    ids['category-chips'].found['[data-category]'] = chips;
+    if (recommendations) ids.featured = element();
+  }
+  const view = page({ ids, found: { '.app-row[data-tool]': rows } });
+  return Object.assign(view, {
+    ids, rows, chips, clear,
+    visible() { return rows.filter(item => !item.hidden).map(item => item.dataset.tool); },
+    pressed() {
+      return chips.filter(chip => chip.attributes['aria-pressed'] === 'true')
+        .map(chip => chip.dataset.category);
+    },
+    search(value) { ids['tool-search'].value = value; return ids['tool-search'].dispatch('input'); },
+    choose(category) {
+      return chips.find(chip => chip.dataset.category === category).dispatch('click');
+    },
+  });
+}
 
-  view.set('tool-search', 'digital twin', 'input');
-  view.set('category', 'testing', 'change');
-  view.set('platform', 'linux', 'change');
-  assert.deepEqual(view.visible(), ['digital-twin-universe']);
-  assert.deepEqual(view.visibleFeatured(), ['digital-twin-universe']);
-  assert.equal(view.ids['result-count'].textContent, '1 tool');
-  assert.equal(view.ids['recommended-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '1 tool');
-});
-
-test('Name is a global stable alphabetical list; Category restores original groups without duplicates', () => {
+test('search and chips appear at load with every row, the count, and Recommended visible', () => {
   const view = catalog();
-  const originalParents = new Map(view.originalParents);
-  view.set('tool-sort', 'name', 'change');
-
-  assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
-    ['legacy', 'alternative', 'authoring', 'recommended']);
-  assert.deepEqual(view.recommendedGrid.children.map(card => card.dataset.tool), ['recommended']);
-  assert.deepEqual(view.groups.map(group => group.hidden), [true, true, true]);
+  assert.equal(view.classes.has('js'), true);
+  assert.equal(view.ids['store-search'].hidden, false);
+  assert.equal(view.ids['category-chips'].hidden, false);
+  assert.deepEqual(view.visible(), ['alternative', 'echo', 'unlisted', 'recommended']);
   assert.equal(view.ids['result-count'].textContent, '4 tools');
-  assert.equal(view.ids['other-count'].textContent, '4 tools');
-  assert.deepEqual(view.placed().map(card => card.dataset.tool),
-    ['recommended', 'legacy', 'alternative', 'authoring', 'recommended']);
-  assert.equal(new Set(view.placed()).size, view.cards.length);
-
-  view.set('tool-sort', 'category', 'change');
-  assert.equal(view.nameGrid.hidden, true);
-  assert.deepEqual(view.groups.map(group => group.hidden), [false, false, false]);
-  for (const [card, parent] of originalParents) assert.equal(card.parentElement, parent);
-  assert.deepEqual(view.placed().map(card => card.dataset.tool),
-    ['recommended', 'authoring', 'recommended', 'alternative', 'legacy']);
-  assert.equal(new Set(view.placed()).size, view.cards.length);
+  assert.deepEqual(view.pressed(), ['']);
+  assert.equal(view.ids.featured.hidden, false);
+  assert.equal(view.ids['empty-results'].hidden, true);
 });
 
-test('two featured recommendations remain above Name-sorted All tools and survive clear', () => {
-  const view = catalog({ twoRecommendations: true });
-  view.set('tool-sort', 'name', 'change');
-
-  assert.deepEqual(view.recommendedGrid.children.map(card => card.dataset.tool),
-    ['recommended', 'recommended-two']);
-  assert.equal(view.featuredCards.filter(card => card.dataset.recommended === 'true').length, 2);
-  assert.equal(view.allToolCards.filter(card => card.dataset.recommended === 'true').length, 2);
-  assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
-    ['legacy', 'alternative', 'recommended-two', 'authoring', 'recommended']);
-  assert.deepEqual(view.placed().slice(0, 2).map(card => card.dataset.tool),
-    ['recommended', 'recommended-two']);
-  assert.equal(view.ids['result-count'].textContent, '5 tools');
-  assert.equal(view.ids['recommended-count'].textContent, '2 tools');
-  assert.equal(view.ids['other-count'].textContent, '5 tools');
-  assert.equal(new Set(view.placed()).size, view.cards.length);
-
-  view.set('tool-search', 'no-such-tool', 'input');
-  assert.equal(view.ids['result-count'].textContent, '0 tools');
-  assert.equal(view.ids['recommended-count'].textContent, '0 tools');
-  assert.equal(view.ids['other-count'].textContent, '0 tools');
-  view.ids['clear-filters'].dispatch('click');
-
-  assert.equal(view.ids['tool-sort'].value, 'name');
-  assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy', 'recommended-two']);
-  assert.deepEqual(view.visibleFeatured(), ['recommended', 'recommended-two']);
-  assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
-    ['legacy', 'alternative', 'recommended-two', 'authoring', 'recommended']);
-  assert.equal(view.ids['result-count'].textContent, '5 tools');
-  assert.equal(view.ids['recommended-count'].textContent, '2 tools');
-  assert.equal(view.ids['other-count'].textContent, '5 tools');
-});
-
-test('ordering changes only Tools while shared filters retain their counts', () => {
+test('every search word must appear in a row, in any case and order', () => {
   const view = catalog();
-  view.set('tool-search', 'failure', 'input');
-  view.set('platform', 'linux', 'change');
-  view.set('category', 'testing', 'change');
-  view.set('tool-sort', 'name', 'change');
-
-  assert.equal(view.ids['tool-search'].value, 'failure');
-  assert.equal(view.ids.platform.value, 'linux');
-  assert.equal(view.ids.category.value, 'testing');
-  assert.deepEqual(view.visible(), ['recommended', 'alternative']);
+  view.search('  ISOLATED   failure ');
+  assert.deepEqual(view.visible(), ['alternative', 'recommended']);
   assert.equal(view.ids['result-count'].textContent, '2 tools');
-  assert.equal(view.ids['recommended-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '2 tools');
-  assert.equal(view.group('testing').querySelector('.group-count').textContent, '2 tools');
-  assert.deepEqual(view.nameGrid.children.filter(card => !card.hidden).map(card => card.dataset.tool),
-    ['alternative', 'recommended']);
-  assert.equal(view.ids['recommended-region'].hidden, false);
-  assert.equal(view.ids['other-empty'].hidden, true);
-});
 
-test('category selection updates counts without inserting category-scope copy', () => {
-  const view = catalog();
-  view.set('category', 'testing', 'change');
-  assert.equal(view.ids.category.value, 'testing');
-  assert.deepEqual(view.visible(), ['recommended', 'alternative']);
-  assert.equal(view.ids['recommended-region'].hidden, false);
-  assert.equal(view.ids['recommended-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '2 tools');
-  assert.equal(view.group('testing').querySelector('.group-count').textContent, '2 tools');
-  assert.equal(view.group('authoring').hidden, true);
-
-  view.set('category', '', 'change');
-  assert.equal(view.ids.category.value, '');
-  assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy']);
-});
-
-test('zero matching recommendations hide that region; global empty state is not duplicated', () => {
-  const view = catalog();
-  view.set('category', 'testing', 'change');
-  view.set('tool-search', '  ISOLATED   failure ', 'input');
-  view.set('platform', 'macos', 'change');
+  view.search('macos failure');
   assert.deepEqual(view.visible(), ['recommended']);
-  assert.deepEqual(view.visibleFeatured(), ['recommended']);
   assert.equal(view.ids['result-count'].textContent, '1 tool');
-  assert.equal(view.ids['recommended-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '1 tool');
-  assert.equal(view.ids['recommended-region'].hidden, false);
-  assert.equal(view.ids['other-empty'].hidden, true);
-  assert.equal(view.ids['other-tools'].hidden, false);
 
-  view.set('category', 'authoring', 'change');
-  assert.deepEqual(view.visible(), []);
-  assert.equal(view.ids['result-count'].textContent, '0 tools');
-  assert.equal(view.ids['empty-results'].hidden, false);
-  assert.equal(view.ids['recommended-region'].hidden, true);
-  assert.equal(view.ids['other-empty'].hidden, true);
-  assert.equal(view.ids['other-tools'].hidden, false);
-});
-
-test('zero recommendations hide the whole region and omit a recommendation empty message', () => {
-  const view = catalog({ zeroRecommendations: true });
-  assert.deepEqual(view.visible(), ['classified-alpha', 'classified-beta', 'unclassified']);
-  assert.equal(view.ids['recommended-count'].textContent, '0 tools');
-  assert.equal(view.ids['other-count'].textContent, '3 tools');
-  assert.equal(view.ids['recommended-region'].hidden, true);
-  assert.equal(view.ids['other-empty'].hidden, true);
-  assert.equal(view.ids['other-tools'].hidden, false);
-
-  view.set('tool-search', 'not-present', 'input');
-  assert.deepEqual(view.visible(), []);
-  assert.equal(view.ids['result-count'].textContent, '0 tools');
-  assert.equal(view.ids['recommended-count'].textContent, '0 tools');
-  assert.equal(view.ids['other-count'].textContent, '0 tools');
-  assert.equal(view.ids['empty-results'].hidden, false);
-  assert.equal(view.ids['other-empty'].hidden, true);
-});
-
-test('category and shared filters keep unclassified tools discoverable', () => {
-  const view = catalog();
-  view.set('category', '__unclassified__', 'change');
-  assert.deepEqual(view.visible(), ['legacy']);
-  view.set('tool-search', 'failure', 'input');
-  view.set('platform', 'windows', 'change');
-  assert.deepEqual(view.visible(), ['legacy']);
-  assert.equal(view.ids['other-count'].textContent, '1 tool');
-  assert.equal(view.group('__unclassified__').querySelector('.group-count').textContent, '1 tool');
-  view.set('platform', 'linux', 'change');
-  assert.deepEqual(view.visible(), []);
-  assert.equal(view.group('__unclassified__').hidden, true);
-});
-
-test('Other search and filter preserve Name sorting and unique counts without recommendations', () => {
-  const view = catalog({ zeroRecommendations: true });
-  view.set('tool-search', 'OtHeR', 'input');
-  assert.deepEqual(view.visible(), ['unclassified']);
-  assert.equal(view.ids['result-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '1 tool');
-  assert.equal(view.ids['recommended-count'].textContent, '0 tools');
-  assert.equal(view.ids['recommended-region'].hidden, true);
-  assert.deepEqual(view.visibleFeatured(), []);
-  view.set('category', '__unclassified__', 'change');
-  view.set('tool-sort', 'name', 'change');
-  assert.equal(view.group('__unclassified__').hidden, true);
-  assert.equal(view.nameGrid.hidden, false);
-  assert.deepEqual(view.visible(), ['unclassified']);
-  view.set('tool-search', 'Unclassified', 'input');
-  assert.deepEqual(view.visible(), ['unclassified']);
-  view.set('tool-sort', 'category', 'change');
-  assert.equal(view.group('__unclassified__').hidden, false);
-  assert.equal(view.group('__unclassified__').querySelector('.group-count').textContent, '1 tool');
-  view.ids['clear-filters'].dispatch('click');
+  view.search('failure');
+  assert.deepEqual(view.visible(), ['alternative', 'unlisted', 'recommended']);
   assert.equal(view.ids['result-count'].textContent, '3 tools');
+  assert.deepEqual(view.pressed(), ['']);
 });
 
-test('search includes category labels and the displayed tool name', () => {
+test('search reaches category labels, manifest names, and displayed names', () => {
   const view = catalog();
-  view.set('tool-search', 'TEST environments', 'input');
-  assert.deepEqual(view.visible(), ['recommended', 'alternative']);
-  assert.equal(view.ids['recommended-count'].textContent, '1 tool');
-  assert.equal(view.ids['other-count'].textContent, '2 tools');
-  view.set('tool-search', 'eCho', 'input');
-  assert.deepEqual(view.visible(), ['authoring']);
-  assert.equal(view.ids['other-count'].textContent, '1 tool');
+  view.search('TEST environments');
+  assert.deepEqual(view.visible(), ['alternative', 'recommended']);
+  view.search('fixture-echo');
+  assert.deepEqual(view.visible(), ['echo']);
+  view.search('eCho');
+  assert.deepEqual(view.visible(), ['echo']);
+  view.search('OtHeR');
+  assert.deepEqual(view.visible(), ['unlisted']);
 });
 
-test('clear resets filters and returns focus to search', () => {
+test('a chip narrows rows to its category and takes the pressed state', () => {
   const view = catalog();
-  view.set('tool-sort', 'name', 'change');
-  view.set('category', 'testing', 'change');
-  view.set('platform', 'windows', 'change');
-  view.set('tool-search', 'no-such-term', 'input');
-  view.ids['clear-filters'].dispatch('click');
-  for (const id of ['tool-search', 'platform', 'category']) assert.equal(view.ids[id].value, '');
-  assert.equal(view.ids['tool-sort'].value, 'name');
-  assert.deepEqual(view.visible(), ['recommended', 'alternative', 'authoring', 'legacy']);
+  view.choose('testing');
+  assert.deepEqual(view.visible(), ['alternative', 'recommended']);
+  assert.deepEqual(view.pressed(), ['testing']);
+  assert.equal(view.ids['result-count'].textContent, '2 tools');
   assert.equal(view.ids['empty-results'].hidden, true);
+
+  view.choose('authoring');
+  assert.deepEqual(view.visible(), ['echo']);
+  assert.deepEqual(view.pressed(), ['authoring']);
+  assert.equal(view.ids['result-count'].textContent, '1 tool');
+
+  view.choose('');
+  assert.deepEqual(view.visible(), ['alternative', 'echo', 'unlisted', 'recommended']);
+  assert.deepEqual(view.pressed(), ['']);
   assert.equal(view.ids['result-count'].textContent, '4 tools');
-  assert.equal(view.ids['tool-search'].focused, true);
-  assert.deepEqual(view.nameGrid.children.map(card => card.dataset.tool),
-    ['legacy', 'alternative', 'authoring', 'recommended']);
-  assert.deepEqual(view.groups.map(group => group.hidden), [true, true, true]);
 });
 
-test('legacy catalog without category controls remains filterable', () => {
-  const view = catalog({ legacy: true });
-  view.set('tool-search', 'failure', 'input');
-  view.set('platform', 'linux', 'change');
-  assert.deepEqual(view.visible(), ['recommended', 'alternative']);
-  view.ids['clear-filters'].dispatch('click');
+test('the Other chip keeps unclassified tools discoverable', () => {
+  const view = catalog();
+  view.choose(UNCLASSIFIED);
+  assert.deepEqual(view.visible(), ['unlisted']);
+  assert.deepEqual(view.pressed(), [UNCLASSIFIED]);
+  view.search('video');
+  assert.deepEqual(view.visible(), ['unlisted']);
+  view.search('linux');
+  assert.deepEqual(view.visible(), []);
+  assert.equal(view.ids['empty-results'].hidden, false);
+});
+
+test('search and category combine, and each keeps its value when the other changes', () => {
+  const view = catalog();
+  view.search('failure');
+  view.choose('testing');
+  assert.deepEqual(view.visible(), ['alternative', 'recommended']);
+  assert.equal(view.ids['tool-search'].value, 'failure');
+
+  view.search('macos');
+  assert.deepEqual(view.visible(), ['recommended']);
+  assert.deepEqual(view.pressed(), ['testing']);
+
+  view.choose('authoring');
+  assert.deepEqual(view.visible(), ['echo']);
+  assert.equal(view.ids['tool-search'].value, 'macos');
+});
+
+test('Recommended steps aside while a search or category is active', () => {
+  const view = catalog();
+  view.search('failure');
+  assert.equal(view.ids.featured.hidden, true);
+  view.search('   ');
+  assert.equal(view.ids.featured.hidden, false);
+  assert.deepEqual(view.visible(), ['alternative', 'echo', 'unlisted', 'recommended']);
+
+  view.choose('testing');
+  assert.equal(view.ids.featured.hidden, true);
+  view.search('recommended');
+  assert.equal(view.ids.featured.hidden, true);
+  view.search('');
+  assert.equal(view.ids.featured.hidden, true);
+  view.choose('');
+  assert.equal(view.ids.featured.hidden, false);
+});
+
+test('zero matches show the empty state, and clear resets search and category', () => {
+  const view = catalog();
+  view.choose('authoring');
+  view.search('no-such-term');
+  assert.deepEqual(view.visible(), []);
+  assert.equal(view.ids['result-count'].textContent, '0 tools');
+  assert.equal(view.ids['empty-results'].hidden, false);
+  assert.equal(view.ids.featured.hidden, true);
+  assert.equal(view.active, null);
+
+  view.clear.dispatch('click');
+  assert.equal(view.ids['tool-search'].value, '');
+  assert.deepEqual(view.pressed(), ['']);
+  assert.deepEqual(view.visible(), ['alternative', 'echo', 'unlisted', 'recommended']);
+  assert.equal(view.ids['result-count'].textContent, '4 tools');
+  assert.equal(view.ids['empty-results'].hidden, true);
+  assert.equal(view.ids.featured.hidden, false);
+  assert.equal(view.active, view.ids['tool-search']);
+});
+
+test('a catalog with a registry and no recommendations filters without a Recommended region', () => {
+  const view = catalog({ recommendations: false });
+  view.choose('testing');
+  view.search('macos');
+  assert.deepEqual(view.visible(), ['recommended']);
+  view.search('windows');
+  assert.equal(view.ids['empty-results'].hidden, false);
+  view.clear.dispatch('click');
   assert.equal(view.visible().length, 4);
 });
 
-test('other family pages without catalog search remain unaffected', () => {
-  vm.runInNewContext(script, {
-    document: { getElementById() { return null; }, querySelectorAll() { return []; } },
+test('a catalog without a registry has no chips and remains searchable', () => {
+  const view = catalog({ registry: false });
+  assert.equal(view.ids['store-search'].hidden, false);
+  assert.equal(view.ids['result-count'].textContent, '4 tools');
+  view.search('failure linux');
+  assert.deepEqual(view.visible(), ['alternative', 'recommended']);
+  assert.equal(view.ids['result-count'].textContent, '2 tools');
+  view.search('no-such-term');
+  assert.equal(view.ids['empty-results'].hidden, false);
+  view.clear.dispatch('click');
+  assert.equal(view.visible().length, 4);
+  assert.equal(view.active, view.ids['tool-search']);
+});
+
+test('pages without catalog search, a menu, copy buttons, videos, or an outline remain unaffected', () => {
+  for (const narrow of [false, true]) {
+    const view = page({ narrow });
+    assert.equal(view.classes.has('js'), true);
+  }
+});
+
+function reader(narrow) {
+  const outline = Object.assign(element(), { open: true });
+  page({ found: { '.reader-toc': [outline] }, narrow });
+  return outline;
+}
+
+test('the page outline stays open beside a wide layout and folds above a narrow one', () => {
+  assert.equal(reader(false).open, true);
+  assert.equal(reader(true).open, false);
+});
+
+function copyRegion(clipboard) {
+  const button = element({ copy: 'prompt' });
+  const region = element();
+  const status = element();
+  const code = element();
+  code.textContent = 'Go to https://example.com/tool and install it.';
+  region.found['[role="status"]'] = status;
+  button.ancestors['.copy-region'] = region;
+  const view = page({ ids: { prompt: code }, found: { '[data-copy]': [button] }, clipboard });
+  return Object.assign(view, { button, status, code });
+}
+
+test('a copy button writes its prompt to the clipboard and confirms', async () => {
+  const written = [];
+  const view = copyRegion({ async writeText(text) { written.push(text); } });
+  assert.equal(view.status.textContent, '');
+  await view.button.dispatch('click');
+  assert.deepEqual(written, ['Go to https://example.com/tool and install it.']);
+  assert.equal(view.status.textContent, 'Copied. Paste it into your agent.');
+  assert.equal(view.selected, null);
+});
+
+test('a copy button selects the prompt when the clipboard is unavailable', async () => {
+  const view = copyRegion({ async writeText() { throw new Error('denied'); } });
+  await view.button.dispatch('click');
+  assert.equal(view.selected, view.code);
+  assert.equal(view.status.textContent, 'Text selected. Use your usual copy command.');
+});
+
+const MARKDOWN = '# Fixture post\n\nFixture body.\n';
+const COPY = 'https://example.com/blog/fixture/index.md';
+
+class ClipboardItem {
+  constructor(data) { this.data = data; }
+}
+
+/* A clipboard that takes items, as a browser with ClipboardItem does, or only text. */
+function clipboard(items, log, refuse) {
+  const store = text => {
+    if (refuse) throw new Error('denied');
+    log.written.push(text);
+  };
+  if (!items) return { async writeText(text) { log.offered += 1; store(text); } };
+  return {
+    async write([item]) {
+      log.offered += 1;
+      const blob = await item.data['text/plain'];
+      assert.equal(blob.type, 'text/plain');
+      store(await blob.text());
+    },
+  };
+}
+
+function markdownLink({ items = false, refuse = false, respond } = {}) {
+  const link = Object.assign(element(), { href: COPY });
+  const region = element();
+  const status = element();
+  const requested = [];
+  const log = { offered: 0, written: [] };
+  region.found['[role="status"]'] = status;
+  link.ancestors['.copy-region'] = region;
+  const view = page({
+    found: { '[data-copy-markdown]': [link] },
+    clipboard: clipboard(items, log, refuse),
+    ClipboardItem: items ? ClipboardItem : undefined,
+    fetch(url) {
+      requested.push(url);
+      return respond ? respond() : Promise.resolve({ ok: true, text: async () => MARKDOWN });
+    },
   });
+  return Object.assign(view, {
+    link, status, requested, log, prevented: false,
+    click() { return link.dispatch('click', { preventDefault() { view.prevented = true; } }); },
+  });
+}
+
+for (const items of [true, false]) {
+  const kind = items ? 'clipboard items' : 'clipboard text only';
+
+  test(`a Copy as Markdown link copies the page's Markdown and confirms, with ${kind}`, async () => {
+    const view = markdownLink({ items });
+    assert.deepEqual([view.requested, view.status.textContent], [[], '']);
+    await view.click();
+    assert.equal(view.prevented, true);
+    assert.deepEqual(view.requested, [COPY]);
+    assert.deepEqual(view.log, { offered: 1, written: [MARKDOWN] });
+    assert.equal(view.status.textContent, 'Copied as Markdown.');
+    assert.deepEqual(view.link.attributes, { 'data-copied': '' });
+    assert.equal(view.location, null);
+    await view.click();
+    assert.deepEqual([...view.timers.values()].map(timer => timer.delay), [1600]);
+    view.elapse();
+    assert.deepEqual([view.link.attributes, view.status.textContent], [{}, '']);
+  });
+
+  const failures = {
+    'the request fails': { respond: () => Promise.reject(new Error('offline')) },
+    'the response is an error': {
+      respond: async () => ({ ok: false, statusText: 'Not Found', text: async () => 'Not Found' }),
+    },
+    'the clipboard refuses': { refuse: true },
+  };
+  for (const [reason, options] of Object.entries(failures)) {
+    test(`a Copy as Markdown link opens the Markdown when ${reason}, with ${kind}`, async () => {
+      const view = markdownLink({ items, ...options });
+      await view.click();
+      assert.equal(view.prevented, true);
+      assert.deepEqual(view.requested, [COPY]);
+      assert.deepEqual(view.log.written, []);
+      assert.deepEqual([view.link.attributes, view.status.textContent, view.timers.size], [{}, '', 0]);
+      assert.equal(view.location, COPY);
+    });
+  }
+}
+
+test('clipboard items are offered inside the click, before the Markdown arrives', async () => {
+  let arrive;
+  const view = markdownLink({ items: true, respond: () => new Promise(resolve => { arrive = resolve; }) });
+  const click = view.click();
+  assert.deepEqual(view.log, { offered: 1, written: [] });
+  assert.equal(view.status.textContent, '');
+  arrive({ ok: true, text: async () => MARKDOWN });
+  await click;
+  assert.deepEqual(view.log, { offered: 1, written: [MARKDOWN] });
+  assert.equal(view.status.textContent, 'Copied as Markdown.');
+  assert.equal(view.location, null);
+});
+
+function menuPage() {
+  const menu = element();
+  const toggle = element();
+  const close = element();
+  toggle.attributes['aria-expanded'] = 'false';
+  toggle.box = { left: 300, top: 20, width: 48, height: 40 };
+  menu.found['[data-menu-close]'] = close;
+  const view = page({ ids: { menu }, found: { '[data-menu-toggle]': [toggle] } });
+  return Object.assign(view, {
+    menu, toggle, close,
+    open() { return 'data-open' in menu.attributes; },
+  });
+}
+
+test('the menu opens from its toggle and closes from its close button', () => {
+  const view = menuPage();
+  assert.equal(view.open(), false);
+  assert.equal(view.toggle.attributes['aria-expanded'], 'false');
+
+  view.toggle.dispatch('click');
+  assert.equal(view.open(), true);
+  assert.equal(view.toggle.attributes['aria-expanded'], 'true');
+  assert.equal(view.active, view.close);
+  assert.deepEqual(view.menu.style.values, { '--menu-x': '324px', '--menu-y': '40px' });
+
+  view.close.dispatch('click');
+  assert.equal(view.open(), false);
+  assert.equal(view.toggle.attributes['aria-expanded'], 'false');
+  assert.equal(view.active, view.toggle);
+});
+
+test('Escape and a link inside the menu close it; other keys and clicks do not', () => {
+  const view = menuPage();
+  const link = element();
+  link.ancestors.a = link;
+
+  view.toggle.dispatch('click');
+  view.menu.dispatch('keydown', { key: 'Tab' });
+  view.menu.dispatch('click', { target: element() });
+  assert.equal(view.open(), true);
+
+  view.menu.dispatch('keydown', { key: 'Escape' });
+  assert.equal(view.open(), false);
+  assert.equal(view.toggle.attributes['aria-expanded'], 'false');
+  assert.equal(view.active, view.toggle);
+
+  view.toggle.dispatch('click');
+  view.menu.dispatch('click', { target: link });
+  assert.equal(view.open(), false);
+  assert.equal(view.toggle.attributes['aria-expanded'], 'false');
+});
+
+function demo({ reducedMotion = false, play = () => Promise.resolve() } = {}) {
+  const video = () => Object.assign(element(), {
+    playing: null,
+    play() { this.playing = true; return play(); },
+    pause() { this.playing = false; },
+  });
+  const toggle = () => {
+    const button = element();
+    button.hidden = true;
+    button.textContent = 'Pause motion';
+    button.attributes['aria-pressed'] = 'false';
+    return button;
+  };
+  const videos = [video(), video()];
+  const toggles = [toggle(), toggle()];
+  const view = page({
+    found: { '[data-demo-video]': videos, '[data-motion-toggle]': toggles }, reducedMotion,
+  });
+  return Object.assign(view, {
+    videos, toggles,
+    playing() { return videos.map(item => item.playing); },
+    controls() {
+      return toggles.map(button => [button.hidden, button.textContent, button.attributes['aria-pressed']]);
+    },
+  });
+}
+
+test('demo videos play at load and every motion toggle pauses and resumes all of them', () => {
+  const view = demo();
+  assert.deepEqual(view.playing(), [true, true]);
+  assert.deepEqual(view.controls(), [[false, 'Pause motion', 'false'], [false, 'Pause motion', 'false']]);
+
+  view.toggles[1].dispatch('click');
+  assert.deepEqual(view.playing(), [false, false]);
+  assert.deepEqual(view.controls(), [[false, 'Play motion', 'true'], [false, 'Play motion', 'true']]);
+
+  view.toggles[0].dispatch('click');
+  assert.deepEqual(view.playing(), [true, true]);
+  assert.deepEqual(view.controls(), [[false, 'Pause motion', 'false'], [false, 'Pause motion', 'false']]);
+});
+
+test('demo videos follow the reduced-motion preference at load and when it changes', () => {
+  const view = demo({ reducedMotion: true });
+  assert.deepEqual(view.playing(), [false, false]);
+  assert.deepEqual(view.controls(), [[false, 'Play motion', 'true'], [false, 'Play motion', 'true']]);
+
+  view.preference.changed({ matches: false });
+  assert.deepEqual(view.playing(), [true, true]);
+  assert.deepEqual(view.controls(), [[false, 'Pause motion', 'false'], [false, 'Pause motion', 'false']]);
+
+  view.preference.changed({ matches: true });
+  assert.deepEqual(view.playing(), [false, false]);
+});
+
+test('a blocked autoplay leaves the page working', async () => {
+  const view = demo({ play: () => Promise.reject(new Error('blocked')) });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(view.controls(), [[false, 'Pause motion', 'false'], [false, 'Pause motion', 'false']]);
+  view.toggles[0].dispatch('click');
+  assert.deepEqual(view.playing(), [false, false]);
 });

@@ -2,5 +2,36 @@
   "kind": "overview",
   "key": "overview",
   "title": "Amplifier Smart Tools | Expertise, built into the tool.",
-  "description": "Amplifier Smart Tools is a format for packaging domain expertise into tools with their own AI capability. Learn the architecture, specification, and how to build one."
+  "description": "Amplifier Smart Tools is a format for packaging domain expertise into tools with their own AI capability. Learn the architecture, specification, and how to build one.",
+  "featured": [
+    {
+      "slug": "reality-check",
+      "name": "Reality Check",
+      "tagline": "Tests your app by using it."
+    },
+    {
+      "slug": "digital-twin-universe",
+      "name": "Digital Twin Universe",
+      "tagline": "Realistic environments on demand."
+    },
+    {
+      "slug": "smart-tool-creator",
+      "name": "Smart Tool Creator",
+      "tagline": "Turn what you know into a tool."
+    }
+  ],
+  "news": [
+    {
+      "date": "2026-11-13",
+      "label": "Release",
+      "title": "Reality Check 0.9.1",
+      "tool": "reality-check"
+    },
+    {
+      "date": "2026-11-03",
+      "label": "Release",
+      "title": "Digital Twin Universe 0.6.9",
+      "tool": "digital-twin-universe"
+    }
+  ]
 }
