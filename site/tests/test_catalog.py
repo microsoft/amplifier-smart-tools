@@ -2442,4 +2442,7 @@ def test_website_artifact_retention_and_no_pr_deploy():
     upload = next(step for step in jobs['build']['steps']
                   if step.get('uses', '').startswith('actions/upload-pages-artifact@'))
     assert upload['with']['retention-days'] == 7
-    assert jobs['deploy']['if'] == "github.event_name == 'workflow_dispatch' && inputs.publish"
+    assert jobs['deploy']['if'] == (
+        "(github.event_name == 'push' && github.ref == 'refs/heads/main') || "
+        "(github.event_name == 'workflow_dispatch' && inputs.publish)"
+    )
