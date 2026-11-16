@@ -29,15 +29,16 @@ shared preview directory named after its repository, then serve that directory.
 ## GitHub Pages
 
 The Website workflow builds an artifact for relevant pull requests and main
-updates. Publication is explicit: enable Pages with GitHub Actions as the source,
-then run Website on the intended branch with `publish` checked and the correct
-family owner. Branch previews need that branch allowed in the github-pages
-environment's deployment rules. All linked family sites must be published before
+updates. Enable Pages with GitHub Actions as the source. A push to main that
+changes the site, `spec/`, `docs/images/`, `tools/`, or the workflow builds and
+publishes automatically. To publish another revision, run Website on the intended
+branch with `publish` checked and the correct family owner. Branch previews need
+that branch allowed in the github-pages environment's deployment rules. All linked family sites must be published before
 cross-site navigation is live. No repository visibility changes are required by
 this workflow; verify Pages availability for the repository's current plan.
 
-A normal push only builds the artifact. It does not publish an unreviewed page.
-Use the downloaded artifact or the local server to review before publication.
+A push to any other branch only builds the artifact. Use the downloaded artifact
+or the local server to review a change before it merges.
 
 The `github-pages` artifact is retained for seven days; it is a downloadable
 preview, not a live preview URL. Pull requests build GitHub's merge ref
@@ -215,7 +216,7 @@ with a copy names it in a `rel="alternate"` link, and every page names `llms.txt
 The build renders the six Markdown chapters in `spec/` into a local reader at
 `spec/index.html`, with chapter navigation, heading links, and source links.
 The repository specification remains the source of truth. Changes under `spec/`
-trigger the Website build; publishing the updated site remains explicit.
+trigger the Website build and, on main, publication.
 
 
 ## Tool demo videos
