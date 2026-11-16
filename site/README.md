@@ -4,7 +4,7 @@ This repository's promotional page uses the Amplifier Smart Tools family theme.
 Product page content lives in `site.json`. The canonical theme is maintained in
 `microsoft/amplifier-smart-tools/site/theme`; this repository carries a versioned
 copy so a build does not depend on a moving remote theme or an online service.
-Theme version: 0.1.0. Theme code is MIT licensed.
+Theme version: 0.2.0. Theme code is MIT licensed.
 
 ## Build and preview
 
@@ -61,11 +61,16 @@ separate authorization.
 
 Use the full family name, Amplifier Smart Tools, as one masthead and footer
 identity. The overview explains the format and how to build a tool; discovery
-and individual tool listings belong in the catalog.
+and individual tool listings belong in the catalog. The overview may name a few
+tools in `featured` in `site.json`; each entry links to that tool's catalog page.
 
-Use plain punctuation, with middle dots permitted between Math, AI, Design, and
-Engineering in the team name. Keep MADE and Microsoft Office of the CTO as text
-attribution. Do not link to the internal team site. Preserve the shared navigation,
+The overview's "What's new" list shows the five newest items from `news` in
+`site.json` and from the blog. A `news` entry has a `date` (YYYY-MM-DD), a `label`,
+a `title`, and an optional `tool` slug that links the title to that tool's catalog
+page. Blog posts appear without an entry.
+
+Use plain punctuation. The footer credit, "Developed by made at Microsoft", is the
+only attribution. Do not link to the internal team site. Preserve the shared navigation,
 layout, typography, paper background, and gold details; a tool may set its own
 accent, content, and image in `site.json`.
 
@@ -85,7 +90,7 @@ The canonical renderer supports optional catalog-owned `categories.json` and
 `tools/<slug>/listing.json`, without changing the Smart Tool manifest or source-pointer
 format. The registry is `{"categories":[{"id":"stable-id","label":"Display name","scope":"Kind of work covered."}]}`.
 A maintainer-owned listing requires a known primary `category`; the ordinary form is `{"category": "approved-id"}`. Optional `recommended` defaults to false in a normalized copy in memory, never by mutating input or rewriting files. A provided flag must be a strict boolean. False or omission prohibits `reviewed_source`; a true designation records the selected `repository`, distribution `path`, and full source `commit`.
-Entries without a listing automatically appear under Other and remain searchable by Name and Category. Other is a built-in fallback grouping, not a registry category. Without a registry, the renderer keeps legacy output and does not add category or recommendation controls.
+Entries without a listing automatically appear under Other and remain searchable by Name and Category. Other is a built-in fallback grouping, not a registry category. Without a registry, the renderer adds no category or recommendation controls.
 
 `site/theme/catalog_metadata.py` provides the shared validators for the renderer and
 catalog CI: `load_catalog_metadata(root)` returns optional categories and validated
@@ -104,40 +109,29 @@ means catalog maintainers selected this tool as a preferred starting point for i
 category at the recorded source revision. Selection is not certification or a claim that
 specification conformance or task outcomes were checked. Any review results and scope
 limitations are stated only when recorded. A snapshot is point-in-time; refreshing it does
-not renew the designation. Recommended is a plain, noninteractive badge. Source revision
-and refresh details remain in the existing optional “Full description and source”
-disclosure; the badge does not expand or link to recommendation-specific copy.
+not renew the designation.
 
-The catalog places Recommended above All tools. Each effective recommendation appears
-once in Recommended as a shortcut and once in All tools as part of the complete catalog;
-the two regions contain 24 card instances for 22 unique source listings. The All tools
-count and global result count are based on those 22 unique listings, not the rendered
-card total. The Recommended region is hidden whenever no matching effective
-recommendations exist, including on the initial server-rendered page, and has no
-empty-state placeholder. All tools are grouped by category by default or can be shown
-in one global alphabetical Name list.
+Recommended sits above All tools as a row of
+cards, one per effective recommendation, and is absent when there is none. All tools
+is one list of every unique listing in name order: icon, name, the first sentence of
+the manifest description, and Get. A recommended tool carries a "Recommended" label in the list.
+A stale designation shows "Recommendation needs review" and has no card. A live status
+for screen readers reports the number of matching unique listings.
 
-One control bar sits above all results: Search, Category, Platform, Sort by (Category or
-Name), and one Clear filters action. Search, category, and platform filter both copies;
-sorting changes only All tools, and clearing filters preserves the selected sort. Category
-scopes remain registry metadata and are not inserted into the control bar or displayed
-when a category is selected. The Other option and group appear only when at least one current
-entry lacks classification. Native select controls keep their dimensions as values change. At
-phone widths, Search spans the bar, Category and Platform share a two-column row, and Sort
-by and Clear filters share the next row. Category labels remain visible on every card and
-searchable with displayed tool names.
+Search and category chips sit above the results. Chips exist only for categories
+that hold a tool, in label order, with Other only when an entry lacks classification.
+Search matches names, descriptions, use cases, platforms, and category labels. While
+a search or category is active, Recommended is hidden. When nothing matches, one
+empty message offers to clear the search. At phone widths the chips scroll sideways
+in one row. Category scopes remain registry metadata and are not displayed. Without
+JavaScript, the search and chips stay hidden and every listing remains visible.
 
-The all-results count is a live status for unique All tools listings; Recommended and All
-tools have separate counts. When no listing matches, one global empty message replaces
-section-specific empty messages. Without JavaScript, the filter bar and Name list stay
-hidden, all 22 unique listings remain visible in All tools along with the two featured
-shortcuts, and a zero-card Recommended region is hidden. Ordinary category group headings
-are noninteractive, with no second category-navigation area.
-
-With a category registry, every card names its category. Recommended shortcuts use the
-section heading instead of a redundant “Recommended” badge; their All tools copies show
-that badge. Stale designations retain “Recommendation needs review”; ordinary cards have
-no recommendation-status badge. Cards without a listing show “Category: Other.” Even without snapshots or JavaScript, these entries remain readable. A legacy catalog without a registry keeps its existing card markup.
+Get, the name, and the card all open the tool's catalog page at `tools/<slug>/`.
+The page shows the icon, the name, one line of facts (category, platforms, publisher,
+version), the first sentence, a prompt that asks an agent to install the tool from its
+source, up to six use cases, and other tools in the same category. An entry without a listing shows the
+category Other. An entry without a snapshot remains readable. A catalog without a
+registry has no chips, no Recommended, and no Category fact.
 
 Tool creators do not nominate or select entries; catalog maintainers make those
 decisions. Submissions are source-only and category-agnostic: submitters do not add, choose, or create categories or recommendations and need not know category definitions. Maintainers assign classification from the approved registry in separate metadata, never upstream manifests or source pointers. Category additions, label changes, and scope changes require their separate review and approval.
@@ -148,7 +142,7 @@ The normative maintainer roles and designation, renewal, replacement, and withdr
 procedures live in the catalog's
 [maintainer curation guide](https://github.com/microsoft/amplifier-smart-tools-catalog/blob/main/docs/maintainers.md).
 
-`site/sync_theme.py` copies the helper with the renderer, CSS, JavaScript, family registry, license, and shared motion assets. Review the synchronized diff and run a build in the target catalog before adoption; do not update only a vendored theme copy.
+`site/sync_theme.py` copies the helper with the renderer, graphics module, CSS, JavaScript, family registry, license, and shared assets. Review the synchronized diff and run a build in the target catalog before adoption; do not update only a vendored theme copy.
 
 ## Site tests
 
@@ -159,15 +153,62 @@ uv run --with pytest --with-requirements site/requirements.txt pytest site/tests
 node --test site/tests/test_filters.cjs
 ```
 
-The Python suite also checks legacy rendering, emitted assets, and theme sync. The Node harness executes the production script against a minimal DOM; it is not a browser layout or supported-host trial. Run browser and read-only host discovery scenarios separately before making those claims. CI runs these checks alongside the existing conformance kit tests.
+The Python suite also checks rendering without a category registry, emitted assets, and theme sync. The Node harness executes the production script against a minimal DOM; it is not a browser layout or supported-host trial. Run browser and read-only host discovery scenarios separately before making those claims. CI runs these checks alongside the existing conformance kit tests.
 
-## Motion assets
+## Site text
 
-The shared title mark uses an eight-second looping GIF with a static PNG fallback.
-The overview illustration has a pause control that also pauses its title mark. Reduced-motion
-preferences select the still image by default. Shared media lives in
-`site/theme/assets/` and is included by the theme sync script. The original briefs
-and generation provenance live in `amplifier-smart-tools/site/artwork/`.
+`site/theme/text.yaml` holds the wording of the overview site and the catalog site:
+headings, button labels, the home page copy, the diagram labels, and the sentences in
+`llms.txt`. A comment above each entry says where it shows. Change a value, build again,
+and sync the theme so the catalog shows the same text.
+
+Text that belongs to one site stays in that site's `site.json`: the page title and
+description, the `featured` tools, and the `news` items. Blog posts are in `site/blog/`,
+and the specification chapters are in `spec/`.
+
+## Graphics and fonts
+
+`site/theme/graphics.py` draws the family mark, line icons, the flow diagram, and one
+glyph per tool, all as inline SVG. The mark is a wrench with a spark in its jaw; the
+favicon follows the browser's light or dark color scheme. A tool's glyph and field
+color are keyed by its catalog slug or page key; a tool without a glyph shows its
+initial on a neutral field. Reality Check, Smart Tool Creator, and Digital Twin Universe
+have their own artwork: a line drawing with one pastel part on an ink tile.
+
+Instrument Sans, Geist Mono, and Pirata One ship in `site/theme/assets/fonts/` with
+their Open Font License texts and are included by the theme sync script.
+
+## Blog
+
+Each post is a directory at `site/blog/<slug>/` with a `post.md` and its images beside it.
+`post.md` starts with front matter, then the body in Markdown:
+
+```
+---
+title: Post title
+date: 2026-11-16
+author: Author name
+affiliation: Team or organization
+summary: One or two sentences for the post list.
+---
+```
+
+`affiliation` is optional. The build writes the post list to `blog/index.html`, newest
+first, and each post to `blog/<slug>/index.html`. An image alone in a paragraph becomes a
+figure, and an italic line directly after it becomes the caption. Images must be files in
+the post directory. A post's header has a "Copy as Markdown" link; without JavaScript it
+opens the post's Markdown copy.
+
+## Markdown copies and llms.txt
+
+The build follows the [llms.txt](https://llmstxt.org/) proposal so an agent can read the
+site without parsing HTML. `llms.txt` at the site root gives a short description and links
+to Markdown copies. Each specification chapter has a copy at `spec/<chapter>.md` (the
+introduction at `spec/index.md`), and each post has one at `blog/<slug>/index.md`. Images
+in a post's copy carry the post's full address, so they load from a pasted copy. A page
+with a copy names it in a `rel="alternate"` link, and every page names `llms.txt` in a
+`rel="describedby"` link. The catalog build writes its own `llms.txt` and one
+`tools/<slug>/index.md` per tool.
 
 ## Specification reader
 
@@ -176,15 +217,12 @@ The build renders the six Markdown chapters in `spec/` into a local reader at
 The repository specification remains the source of truth. Changes under `spec/`
 trigger the Website build; publishing the updated site remains explicit.
 
-The square overview illustration lives in `site/assets/`. Unfold authors and renders the animation from the approved artwork. Outtake
-converts the square export to an inline GIF.
-See `site/artwork/README.md` for provenance and the retained MP4 masters.
 
 ## Tool demo videos
 
 Tool pages may set `video` to a repository-relative MP4 path. With video present,
 `image` is the poster, and the existing dimensions, alt text and caption describe
 the demo. The player supports native controls and muted looping playback.
-The shared motion toggle controls both GIF branding and demo playback; reduced
+The motion toggle controls demo playback; reduced
 motion disables initial playback. Without JavaScript, native video controls remain
 available. Sync the theme to an explicit tool checkout to adopt this capability.

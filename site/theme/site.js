@@ -1,11 +1,13 @@
 /* Progressive enhancement only. All content and links work without JavaScript. */
+document.documentElement.classList.add('js');
+
 for (const button of document.querySelectorAll('[data-copy]')) {
   button.addEventListener('click', async () => {
     const code = document.getElementById(button.dataset.copy);
     const status = button.closest('.copy-region').querySelector('[role="status"]');
     try {
       await navigator.clipboard.writeText(code.textContent);
-      status.textContent = 'Copied. Paste this into your agent or terminal.';
+      status.textContent = 'Copied. Paste it into your agent.';
     } catch {
       const range = document.createRange();
       range.selectNodeContents(code);
@@ -16,121 +18,130 @@ for (const button of document.querySelectorAll('[data-copy]')) {
     }
   });
 }
+
+for (const link of document.querySelectorAll('[data-copy-markdown]')) {
+  let reset;
+  link.addEventListener('click', async event => {
+    event.preventDefault();
+    const text = fetch(link.href).then(response => {
+      if (!response.ok) throw new Error(response.statusText);
+      return response.text();
+    });
+    try {
+      // A clipboard item that holds the pending text keeps the write inside the click, which Safari requires.
+      if (window.ClipboardItem) {
+        const blob = text.then(value => new Blob([value], { type: 'text/plain' }));
+        await navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })]);
+      } else {
+        await navigator.clipboard.writeText(await text);
+      }
+      // The button shows the result to the eye. The status line says it to a screen reader.
+      const status = link.closest('.copy-region').querySelector('[role="status"]');
+      status.textContent = 'Copied as Markdown.';
+      link.toggleAttribute('data-copied', true);
+      clearTimeout(reset);
+      reset = setTimeout(() => {
+        link.toggleAttribute('data-copied', false);
+        status.textContent = '';
+      }, 1600);
+    } catch {
+      window.location.assign(link.href);
+    }
+  });
+}
+
+// The page outline stays open beside a wide layout and folds away above a narrow one.
+const outline = document.querySelector('.reader-toc');
+if (outline && window.matchMedia('(max-width: 1100px)').matches) outline.open = false;
+
+const menu = document.getElementById('menu');
+const menuToggle = document.querySelector('[data-menu-toggle]');
+if (menu && menuToggle) {
+  const menuClose = menu.querySelector('[data-menu-close]');
+  function setMenu(open) {
+    if (open) {
+      // The field grows from wherever the control sits in this layout.
+      const box = menuToggle.getBoundingClientRect();
+      menu.style.setProperty('--menu-x', `${box.left + box.width / 2}px`);
+      menu.style.setProperty('--menu-y', `${box.top + box.height / 2}px`);
+    }
+    menu.toggleAttribute('data-open', open);
+    menuToggle.setAttribute('aria-expanded', String(open));
+    (open ? menuClose : menuToggle).focus({ preventScroll: true });
+  }
+  menuToggle.addEventListener('click', () => setMenu(true));
+  menuClose.addEventListener('click', () => setMenu(false));
+  menu.addEventListener('keydown', event => {
+    if (event.key === 'Escape') setMenu(false);
+  });
+  // A link to a section of this page must reveal that section.
+  menu.addEventListener('click', event => {
+    if (event.target.closest('a')) setMenu(false);
+  });
+}
+
 const search = document.getElementById('tool-search');
 if (search) {
-  const platform = document.getElementById('platform');
-  const category = document.getElementById('category');
-  const toolSort = document.getElementById('tool-sort');
-  const filters = document.getElementById('catalog-filters');
-  const cards = [...document.querySelectorAll('[data-tool]')];
-  const recommendedRegion = document.getElementById('recommended-region');
-  const featuredCards = recommendedRegion
-    ? [...recommendedRegion.querySelectorAll('[data-tool]')] : [];
-  const otherTools = document.getElementById('other-tools');
-  const allToolCards = otherTools
-    ? [...otherTools.querySelectorAll('[data-tool]')] : cards;
-  const originalParents = new Map(allToolCards.map(card => [card, card.parentElement]));
-  const groups = [...document.querySelectorAll('[data-category-group]')];
-  const nameGrid = document.getElementById('other-tools-by-name');
+  const searchField = document.getElementById('store-search');
+  const chipGroup = document.getElementById('category-chips');
+  const chips = chipGroup ? [...chipGroup.querySelectorAll('[data-category]')] : [];
+  const rows = [...document.querySelectorAll('.app-row[data-tool]')];
   const count = document.getElementById('result-count');
-  const recommendedCount = document.getElementById('recommended-count');
-  const otherCount = document.getElementById('other-count');
-  const otherEmpty = document.getElementById('other-empty');
+  const featured = document.getElementById('featured');
   const empty = document.getElementById('empty-results');
-  const clearFilters = document.getElementById('clear-filters');
-  const plural = total => `${total} ${total === 1 ? 'tool' : 'tools'}`;
-  function categoryOf(card) {
-    return card.dataset.category || '__unclassified__';
-  }
-  function nameOf(card) {
-    return (card.dataset.name || card.querySelector('h2')?.textContent ||
-      card.dataset.tool || '').trim();
-  }
-  function compareByName(left, right) {
-    const byName = nameOf(left).localeCompare(nameOf(right), undefined, { sensitivity: 'base' });
-    return byName || String(left.dataset.tool || '').localeCompare(
-      String(right.dataset.tool || ''), undefined, { sensitivity: 'base' });
-  }
-  function applySort() {
-    if (!toolSort || !nameGrid) return false;
-    const byName = toolSort.value === 'name';
-    if (byName) {
-      for (const card of [...allToolCards].sort(compareByName)) nameGrid.appendChild(card);
-      nameGrid.hidden = false;
-    } else {
-      for (const card of allToolCards) originalParents.get(card)?.appendChild(card);
-      nameGrid.hidden = true;
-    }
-    return byName;
-  }
-  function matchesBase(card) {
-    const words = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return words.every(word => card.dataset.search.includes(word)) &&
-      (!platform.value || card.dataset.platforms.split(' ').includes(platform.value));
-  }
+  let category = '';
   function filter() {
-    const nameSorted = applySort();
-    const baseMatches = new Map(cards.map(card => [card, matchesBase(card)]));
-    const matchesCategory = card => baseMatches.get(card) &&
-      (!category || !category.value || categoryOf(card) === category.value);
-    const visibleCards = cards.filter(matchesCategory);
-    const visibleSet = new Set(visibleCards);
-    for (const card of cards) card.hidden = !visibleSet.has(card);
-
-    const visibleRecommended = featuredCards.filter(matchesCategory).length;
-    const visibleOther = allToolCards.filter(matchesCategory).length;
-    count.textContent = plural(visibleOther);
-    if (recommendedCount) recommendedCount.textContent = plural(visibleRecommended);
-    if (otherCount) otherCount.textContent = plural(visibleOther);
-    if (recommendedRegion) recommendedRegion.hidden = visibleRecommended === 0;
-
-    for (const group of groups) {
-      const groupCards = allToolCards.filter(card =>
-        categoryOf(card) === group.dataset.categoryGroup);
-      const groupVisible = groupCards.filter(card => !card.hidden).length;
-      group.hidden = nameSorted || groupVisible === 0;
-      const groupCount = group.querySelector('.group-count');
-      if (groupCount) groupCount.textContent = plural(groupVisible);
+    const words = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    let visible = 0;
+    for (const row of rows) {
+      const match = words.every(word => row.dataset.search.includes(word)) &&
+        (!category || row.dataset.category === category);
+      row.hidden = !match;
+      if (match) visible += 1;
     }
-    if (otherTools) otherTools.hidden = false;
-    if (nameGrid) nameGrid.hidden = !nameSorted || visibleOther === 0;
-    if (empty) empty.hidden = visibleOther !== 0;
-    if (otherEmpty) otherEmpty.hidden = visibleOther !== 0 || visibleRecommended === 0;
+    count.textContent = `${visible} ${visible === 1 ? 'tool' : 'tools'}`;
+    for (const chip of chips) {
+      chip.setAttribute('aria-pressed', String(chip.dataset.category === category));
+    }
+    // Recommendations are a starting point, so they step aside once a reader narrows the list.
+    if (featured) featured.hidden = Boolean(category || words.length);
+    empty.hidden = visible !== 0;
   }
   search.addEventListener('input', filter);
-  platform.addEventListener('change', filter);
-  if (category) category.addEventListener('change', filter);
-  if (toolSort) toolSort.addEventListener('change', filter);
-  clearFilters.addEventListener('click', () => {
-    search.value = ''; platform.value = '';
-    if (category) category.value = '';
-    filter(); search.focus();
+  for (const chip of chips) {
+    chip.addEventListener('click', () => {
+      category = chip.dataset.category;
+      filter();
+    });
+  }
+  empty.querySelector('[data-clear]').addEventListener('click', () => {
+    search.value = '';
+    category = '';
+    filter();
+    search.focus();
   });
-  if (filters) filters.hidden = false;
+  searchField.hidden = false;
+  if (chipGroup) chipGroup.hidden = false;
   filter();
 }
 
-// GIFs have no pause API. Use a matching still when motion is paused or reduced.
-const motionImages = [...document.querySelectorAll('[data-motion-src]')];
 const demoVideos = [...document.querySelectorAll('[data-demo-video]')];
-if (motionImages.length || demoVideos.length) {
+if (demoVideos.length) {
   const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const toggles = [...document.querySelectorAll('[data-motion-toggle]')];
   let paused = preference.matches;
   function setMotion() {
-    for (const img of motionImages) {
-      img.src = paused ? img.dataset.stillSrc : img.dataset.motionSrc;
-    }
     for (const video of demoVideos) {
       if (paused) video.pause();
       else video.play().catch(() => { /* Native controls remain available. */ });
     }
-    for (const button of document.querySelectorAll('[data-motion-toggle]')) {
+    for (const button of toggles) {
       button.hidden = false;
       button.textContent = paused ? 'Play motion' : 'Pause motion';
       button.setAttribute('aria-pressed', String(paused));
     }
   }
-  for (const button of document.querySelectorAll('[data-motion-toggle]')) {
+  for (const button of toggles) {
     button.addEventListener('click', () => { paused = !paused; setMotion(); });
   }
   preference.addEventListener('change', event => { paused = event.matches; setMotion(); });

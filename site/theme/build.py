@@ -1,24 +1,40 @@
 #!/usr/bin/env python3
-"""Build a standalone Smart Tools page. Theme v0.1.0, MIT licensed."""
+"""Build a standalone Smart Tools page. Theme v0.2.0, MIT licensed."""
 import argparse
 import html
 import json
 import re
 import shutil
 import unicodedata
+from datetime import date
+from itertools import cycle
 from pathlib import Path
-from urllib.parse import quote, urlsplit, urlunsplit
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
+
+import yaml
+
 from catalog_metadata import (
     catalog_sources, load_catalog_metadata, read_json, read_snapshot,
     recommendation_state, validate_pointer,
+)
+from graphics import (
+    ARTWORK, FAVICON, GLYPH_DEFS, field, flow_diagram, icon, mark, tool_art,
 )
 
 THEME = Path(__file__).resolve().parent
 FAMILY = json.loads((THEME / 'family.json').read_text())
 PAGES = FAMILY['pages']
 SPEC = 'https://github.com/microsoft/amplifier-smart-tools/tree/main/spec'
-SKILL_INSTALL = 'npx skills add microsoft/amplifier-smart-tools'
-SKILL_PATH = '/blob/main/skills/amplifier-smart-tools/SKILL.md'
+PLATFORM_LABELS = {'linux': 'Linux', 'macos': 'macOS', 'windows': 'Windows'}
+UNCLASSIFIED = '__unclassified__'
+TEXT = yaml.safe_load((THEME / 'text.yaml').read_text(encoding='utf-8'))
+SHARED, HOME, STORE, TOOL, BLOG, READER, LLMS, TOOL_SITE = (
+    TEXT[part] for part in ('shared', 'overview', 'catalog', 'tool_page', 'blog', 'specification', 'llms', 'tool_site'))
+FAMILY_PROMPT = SHARED['prompt']
+BENEFITS = [(item['title'], item['text']) for item in HOME['why']['items']]
+ABOUT = HOME['what']['text']
+BUILD_STEPS = HOME['build']['steps']
+CHAPTERS = list(READER['chapters'].items())
 
 
 def plain(value):
@@ -29,6 +45,16 @@ def plain(value):
 
 def esc(value):
     return html.escape(plain(value), quote=True)
+
+
+def words(value):
+    """Wording from text.yaml as page content."""
+    return html.escape(plain(value), quote=False)
+
+
+def lines(value):
+    """A heading whose entries are its lines."""
+    return '<br>'.join(words(line) for line in value)
 
 
 def safe_url(value):
@@ -55,66 +81,122 @@ def page_url(key, args):
     return f'https://{owner}.github.io/{p["repository"]}/'
 
 
-def plate_art(variant=0):
-    angle = [0, 22, 45, 67, 90][variant % 5]
-    return f'''<svg viewBox="0 0 400 400" fill="none" aria-hidden="true">
-      <g stroke="currentColor" stroke-width=".7" opacity=".28"><circle cx="200" cy="200" r="165"/><circle cx="200" cy="200" r="113"/><circle cx="200" cy="200" r="62"/><path d="M0 200H400M200 0V400M25 25L375 375M25 375L375 25"/></g>
-      <g transform="rotate({angle} 200 200)" stroke="currentColor"><path d="M72 286L145 96L308 142L261 322Z" stroke-width="1.2"/><path d="M72 286L308 142M145 96L261 322" opacity=".45"/><rect x="139" y="90" width="12" height="12" fill="var(--paper)"/><rect x="302" y="136" width="12" height="12" fill="var(--paper)"/><circle cx="72" cy="286" r="6" fill="var(--paper)"/><circle cx="261" cy="322" r="6" fill="var(--paper)"/></g>
-      <circle cx="200" cy="200" r="9" fill="var(--gold)"/><circle cx="200" cy="200" r="22" stroke="var(--gold)" opacity=".5"/>
-    </svg>'''
+def button(label, url, variant='', arrow=''):
+    classes = f'button {variant}'.strip()
+    return f'<a class="{classes}" href="{html.escape(url, quote=True)}">{esc(label)}{icon("arrow-" + arrow, 18) if arrow else ""}</a>'
+
+
+def text_link(label, url, arrow='up-right'):
+    return f'<a class="text-link" href="{html.escape(url, quote=True)}">{esc(label)}{icon("arrow-" + arrow, 16) if arrow else ""}</a>'
+
+
+def get_link(name, url):
+    """Compact link to a tool's page."""
+    return f'<a class="get" href="{html.escape(url, quote=True)}" aria-label="{esc(SHARED["get"])} {esc(name)}">{words(SHARED["get"])}</a>'
 
 
 def code_box(text, title, identity):
-    return f'''<div class="copy-region"><div class="code-box"><div class="code-head"><span>{esc(title)}</span><button class="copy" data-copy="{identity}" aria-label="Copy {esc(title)}">Copy</button></div><pre id="{identity}">{esc(text)}</pre></div><p class="status-message" role="status" aria-live="polite"></p></div>'''
+    return f'''<div class="copy-region"><div class="code-box"><div class="code-head"><span>{esc(title)}</span><button class="copy" type="button" data-copy="{identity}" aria-label="{esc(SHARED['copy'])} {esc(title)}">{icon('copy', 14)}{words(SHARED['copy'])}</button></div><pre id="{identity}">{esc(text)}</pre></div><p class="status-message" role="status" aria-live="polite"></p></div>'''
+
+
+def app_icon(slug, name):
+    classes = 'app-icon art' if slug in ARTWORK else 'app-icon'
+    return f'<span class="{classes}" style="--field:{field(slug)}"><svg viewBox="0 0 64 64" aria-hidden="true">{tool_art(slug, plain(name))}</svg></span>'
+
+
+def section_head(title, text=''):
+    return f'<div class="section-head"><h2>{title}</h2>{f"<p>{esc(text)}</p>" if text else ""}</div>'
+
+
+def numbered(steps):
+    return '<ol class="numbered">' + ''.join(f'<li><h3>{esc(t)}</h3>{f"<p>{esc(p)}</p>" if p else ""}</li>' for t, p in steps) + '</ol>'
+
+
+def benefits(items, classes='benefits'):
+    return f'<div class="{classes}">' + ''.join(f'<div><strong>{esc(t)}</strong><p>{esc(p)}</p></div>' for t, p in items) + '</div>'
+
+
+def reasons(items):
+    tiles = zip(items, cycle(('blue', 'green', 'yellow', 'red')))
+    return '<div class="benefits cards">' + ''.join(
+        f'<div><span class="tile" style="--swatch:var(--tint-{tint})">{icon(item["icon"], 22)}</span>'
+        f'<strong>{esc(item["title"])}</strong><p>{esc(item["text"])}</p></div>' for item, tint in tiles) + '</div>'
+
+
+def get_started(prompt, note=''):
+    """Prompt a reader hands to an agent. The note is trusted markup."""
+    note = f'<p class="note">{note}</p>' if note else ''
+    return f'<div class="callout"><h3>{words(SHARED["ask"])}</h3>{code_box(prompt, SHARED["prompt_label"], "prompt")}{note}</div>'
+
+
+def facts_row(facts):
+    """A tool's facts as one quiet line. Each term stays available to screen readers."""
+    return '<dl class="facts">' + ''.join(f'<div><dt class="visually-hidden">{esc(term)}</dt><dd>{value}</dd></div>' for term, value in facts) + '</dl>'
+
+
+def tool_card(name, slug, tagline, url):
+    classes = 'tool-card wide art' if slug in ARTWORK else 'tool-card wide'
+    return f'''<article class="{classes}" style="--field:{field(slug)}" data-tool="{esc(slug)}"><svg class="tool-card-art" viewBox="0 0 64 64" aria-hidden="true">{tool_art(slug, plain(name))}</svg><div class="tool-card-top"></div><div class="tool-card-body"><div><h3 class="tool-card-title"><a href="{html.escape(url, quote=True)}">{esc(name)}</a></h3><p class="tool-card-sub">{esc(tagline)}</p></div>{get_link(name, url)}</div></article>'''
+
+
+def app_row(tool, base):
+    """One line of a tool list: icon, name, one sentence, Get."""
+    url = f'{base}{tool["slug"]}/'
+    marker = f'<span class="tag">{words(SHARED["recommended"])}</span>' if tool['state'] == 'recommended' else ''
+    review = f'<span class="tag">{words(SHARED["needs_review"])}</span>' if tool['state'] == 'needs-review' else ''
+    return f'''<article class="app-row" data-tool="{esc(tool['slug'])}" data-category="{esc(tool['category'] or UNCLASSIFIED)}" data-search="{tool['search']}">{app_icon(tool['slug'], tool['name'])}<div><h3 class="app-row-name"><a href="{url}">{esc(tool['name'])}</a>{marker}</h3><p>{esc(tool['tagline'])}</p>{review}</div>{get_link(tool['name'], url)}</article>'''
 
 
 def related(keys, args):
-    return '<div class="related">' + ''.join(f'<a href="{page_url(k, args)}">{PAGES[k]["name"]}<span>Explore the tool</span></a>' for k in keys) + '</div>'
+    rows = ''
+    for key in keys:
+        name, url = PAGES[key]['name'], page_url(key, args)
+        rows += f'<article class="app-row">{app_icon(key, name)}<div><h3 class="app-row-name"><a href="{url}">{esc(name)}</a></h3></div>{get_link(name, url)}</article>'
+    return f'<div class="app-list">{rows}</div>'
 
 
-def overview(config, args):
-    descriptor = json.dumps({
-        "manifest": "src/my_smart_tool/SMART_TOOL.md",
-        "cli_argv": ["my-smart-tool"],
-        "deterministic_smoke": ["manifest"],
-    }, indent=2)
+def first_sentence(text):
+    text = ' '.join(str(text).split())
+    match = re.match(r'.+?[.!?](?=\s|$)', text)
+    return match.group(0) if match else text
+
+
+def news(config, root, catalog_url):
+    """Newest entries from site.json and the blog. On one date, a site.json entry comes first."""
+    items = []
+    for entry in config.get('news', []):
+        slug = entry.get('tool')
+        if slug is not None and not re.fullmatch(r'[a-z0-9]+(-[a-z0-9]+)*', str(slug)):
+            raise ValueError('News tool must be a catalog directory name')
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', str(entry['date'])):
+            raise ValueError('News date must be written as YYYY-MM-DD')
+        items.append((date.fromisoformat(entry['date']), entry['label'], entry['title'], f'{catalog_url}tools/{slug}/' if slug else ''))
+    items += [(post['date'], HOME['news']['blog'], post['title'], f'./blog/{post["slug"]}/') for post in blog_posts(root)]
+    items.sort(key=lambda item: item[0], reverse=True)
+    rows = ''
+    for day, label, title, url in items[:5]:
+        title = f'<a href="{html.escape(url, quote=True)}">{esc(title)}{icon("arrow-right", 16)}</a>' if url else esc(title)
+        rows += f'<li><p class="news-meta"><time datetime="{day.isoformat()}">{day:%b} {day.day}, {day.year}</time><span class="tag">{esc(label)}</span></p><p class="news-title">{title}</p></li>'
+    return f'<aside class="news" aria-labelledby="news-title"><h2 id="news-title">{words(HOME["news"]["title"])}</h2><ol class="news-list">{rows}</ol></aside>' if rows else ''
+
+
+def overview(config, args, root):
+    catalog_url = page_url('catalog', args)
+    cards = ''
+    for item in config.get('featured', []):
+        if not re.fullmatch(r'[a-z0-9]+(-[a-z0-9]+)*', item['slug']):
+            raise ValueError('Featured slug must be a catalog directory name')
+        cards += tool_card(item['name'], item['slug'], item['tagline'], f'{catalog_url}tools/{item["slug"]}/')
+    featured = f'''<section class="section">{section_head(words(HOME['featured']['title']))}<div class="card-grid three">{cards}</div><div class="actions">{text_link(HOME['featured']['all'], catalog_url, 'right')}</div></section>''' if cards else ''
+    hero, build = HOME['hero'], HOME['build']
     return f'''<section class="hero"><div class="hero-grid"><div>
-      <p class="eyebrow">Amplifier Smart Tools</p>
-      <h1>Expertise, built<br>into the tool.</h1>
-      <p class="lede">A format for packaging domain expertise into tools with their own AI capability. Built as libraries. Usable from any agent, application, or terminal.</p>
-      <div class="actions">{link(page_url('catalog',args),'Find a smart tool','button primary')}{link('#build','Build a smart tool','text-link')}{link(SPEC,'Read the specification','text-link')}</div>
-    </div><figure class="plate"><span class="plate-label">EXPERTISE THAT TRAVELS</span><img class="plate-motion" src="./assets/expertise-loop.png" data-motion-src="./assets/expertise-loop.gif" data-still-src="./assets/expertise-loop.png" alt="Points spread into rotating shapes, resolve into three nested squares, and return to their starting positions." width="600" height="600">
-      <button class="motion-toggle plate-toggle" data-motion-toggle hidden type="button" aria-pressed="false">Pause motion</button><figcaption class="plate-caption"><span>LIBRARY AT THE CORE</span><span>OPEN AT THE EDGES</span></figcaption>
-    </figure></div></section>
-    <div class="principles"><div><strong>Library first.</strong><p>Every capability is available to code, with a thin CLI for agents and scripts.</p></div><div><strong>Intelligence inside.</strong><p>The tool carries the context and model-backed methods its domain needs.</p></div><div><strong>Ordinary work stays ordinary.</strong><p>Deterministic operations run without model credentials.</p></div></div>
-    <section class="section two-col" id="what"><div><p class="eyebrow">What is an Amplifier Smart Tool?</p><h2>A familiar interface.<br>A capable tool.</h2></div><div>
-      <p>An Amplifier Smart Tool is a self-contained library and command-line tool that ships with its own AI capability. It accepts arguments and returns results, just like other software you already use.</p>
-      <p>For model-backed work, the tool manages the domain context, instructions, and execution. The caller supplies the intent and inputs. Expertise stays with the tool, and the result comes back to the caller.</p>
-      <p>Alongside those capabilities, ordinary code handles deterministic work. A caller using only those paths never needs to configure a model provider.</p>
-    </div></section>
-    <section class="section"><div class="section-heading"><div><p class="eyebrow">How it fits together</p><h2>One library. Several ways in.</h2></div><p>The library owns the capability. Each adapter exposes it in the form a caller needs.</p></div>
-      <div class="architecture" aria-label="Library architecture"><div class="entry-points"><div><strong>Application or agent</strong><span>Import the library directly</span></div><div><strong>Command line</strong><span>A required thin adapter</span></div><div><strong>MCP or web interface</strong><span>Optional adapters</span></div></div><div class="library-core"><p class="eyebrow">The library is the tool</p><h3>Domain expertise and capabilities</h3><div class="capability-paths"><div><strong>Deterministic operations</strong><span>Ordinary code. No model required.</span></div><div><strong>Model-backed operations</strong><span>Embedded intelligence for domain work.</span></div></div></div></div>
-      <p class="note">No capability belongs only to a wrapper. Removing an optional interface must leave the library and CLI usable.</p>
-      <div class="compact-links">{link(SPEC+'structure.html','Read the structure specification')}{link(SPEC+'invocation.html','Understand invocation and help')}</div>
-    </section>
-    <section class="section two-col"><div><p class="eyebrow">The distinction</p><h2>The tool brings<br>its own intelligence.</h2></div><div>
-      <p>Skills give an agent instructions. MCP provides a way to expose and call capabilities. An Amplifier Smart Tool packages a capability that can invoke a model itself, with the domain knowledge needed to do the work.</p>
-      <p>These fit together. A tool can use skills internally, expose an optional MCP adapter, or be discovered through a skill. Its intelligence lives behind the library boundary, so the caller does not have to recreate its domain workflow.</p>
-      <p>The caller can also be an application, a script, or a scheduled job. Using an Amplifier Smart Tool does not require adopting a particular agent.</p>
-    </div></section>
-    <section class="section two-col" id="build"><div><p class="eyebrow">Build an Amplifier Smart Tool</p><h2>Package what<br>you know.</h2><p style="margin-top:24px">Start with a domain capability worth sharing. The specification defines how to make it discoverable, callable, and installable.</p><div class="actions">{link(SPEC,'Start with the specification','button primary')}</div></div>
-      <ol class="numbered"><li><h3>Put the capability in a library.</h3><p>Expose every useful operation through the library. Add genuine model-backed work alongside deterministic paths that load and run without a provider.</p>{link(SPEC+'structure.html','Library structure','text-link')}</li>
-      <li><h3>Describe it where the code lives.</h3><p>Ship one SMART_TOOL.md manifest with the name, purpose, platforms, and prerequisites. Add library-owned usage guidance and capability help.</p>{link(SPEC+'manifest.html','Manifest format','text-link')}</li>
-      <li><h3>Add the CLI and package it.</h3><p>Keep argument parsing and I/O in a thin CLI. Support installation from Git, and provide a smart-tool.json descriptor at the distribution root.</p>{link(SPEC+'packaging.html','Packaging and installation','text-link')}</li>
-      <li><h3>Tell format checks from task results.</h3><p>A conformance check addresses format. Task-specific checks can answer separate questions about behavior; report only results that were actually observed. Follow the catalog contribution guide to make the tool discoverable.</p>{link(repo_url('overview')+'/tree/main/conformance','Conformance kit','text-link')}</li></ol>
-    </section>
-    <section class="section two-col"><div><p class="eyebrow">A small, explicit contract</p><h2>Make the entry<br>points easy to find.</h2><p style="margin-top:24px">The descriptor points to the manifest and tells a caller how to launch the CLI. The manifest carries the tool's identity and requirements.</p><p class="note">This example assumes the package installs a my-smart-tool executable with a provider-free manifest command.</p></div><div>
-      {code_box(descriptor,'smart-tool.json / example','descriptor')}
-      {code_box('uv run conformance/run.py path/to/your-smart-tool','Example format check','conformance')}
-      <p class="note">Conformance checks the format and reports checks it cannot perform. It does not certify output quality or replace product tests.</p>
-    </div></section>
-    <section class="section two-col" id="skill"><div><p class="eyebrow">Let your agent help</p><h2>One skill.<br>Find, use, build.</h2><p style="margin-top:24px">Install the Amplifier Smart Tools skill and ask your agent for a Smart Tool for your task. It reads the catalog, installs the tool, follows the tool's own help, and can scaffold a new tool when none fits.</p></div><div class="callout"><h3>Install the skill.</h3>{code_box(SKILL_INSTALL,'Terminal','install')}<p class="note">This installs guidance for your agent, not the tools or their credentials.</p>{link(repo_url('overview')+SKILL_PATH,'Read the skill','text-link')}</div></section>
-    <section class="section"><div class="callout"><p class="eyebrow">The Amplifier Smart Tools catalog</p><h2>Find a tool for your work.</h2><p>The catalog is the place to explore available tools and inspect their requirements.</p><div class="actions">{link(page_url('catalog',args),'Explore the catalog','button primary')}{link(repo_url('catalog')+'#contributing','Add your tool','text-link')}{link(repo_url('overview')+'/blob/main/ROADMAP.md','Read the roadmap','text-link')}</div></div></section>'''
+      <h1>{lines(hero['headline'])}</h1>
+      <div class="hero-start" id="get-started"><p class="eyebrow">{words(hero['eyebrow'])}</p>{code_box(FAMILY_PROMPT, SHARED['prompt_label'], 'prompt')}</div>
+      <div class="actions">{button(hero['catalog'], catalog_url, 'action', 'right')}{text_link(hero['build'], '#build', 'down-right')}</div>
+    </div>{news(config, root, catalog_url)}</div></section>
+    {featured}
+    <section class="section" id="why">{section_head(words(HOME['why']['title']))}{reasons(HOME['why']['items'])}<div class="build" id="build"><div><h3>{lines(build['title'])}</h3><div class="actions">{text_link(build['specification'], SPEC)}{text_link(build['conformance'], repo_url('overview') + '/tree/main/conformance')}</div></div>{numbered((step, '') for step in BUILD_STEPS)}</div></section>
+    <section class="section" id="what">{section_head(words(HOME['what']['title']))}<p class="about">{esc(ABOUT)}</p>{flow_diagram(TEXT['diagram'])}</section>'''
 
 
 def tool_page(config, args):
@@ -122,32 +204,32 @@ def tool_page(config, args):
     repo = repo_url(key)
     image = './assets/' + Path(config['image']).name
     media = f'<a href="{image}" aria-label="Open full-size {esc(config["name"])} image"><img src="{image}" alt="{esc(config["alt"])}" width="{config["width"]}" height="{config["height"]}" fetchpriority="high"></a>'
-    media_link = link(image, 'View full size')
+    media_link = link(image, TOOL_SITE['full_size'])
     if config.get('video'):
         video = './assets/' + Path(config['video']).name
-        media = f'<video data-demo-video controls muted loop playsinline preload="metadata" poster="{image}" width="{config["width"]}" height="{config["height"]}" aria-label="{esc(config["alt"])}"><source src="{video}" type="video/mp4">{link(video,"Watch the demo")}</video>'
-        media_link = f'<button class="motion-toggle" data-motion-toggle hidden type="button" aria-pressed="false">Pause motion</button> {link(video,"Watch full size")}'
+        media = f'<video data-demo-video controls muted loop playsinline preload="metadata" poster="{image}" width="{config["width"]}" height="{config["height"]}" aria-label="{esc(config["alt"])}"><source src="{video}" type="video/mp4">{link(video, TOOL_SITE['watch'])}</video>'
+        media_link = f'<button class="motion-toggle" data-motion-toggle hidden type="button" aria-pressed="false">{words(TOOL_SITE["pause"])}</button> {link(video, TOOL_SITE["watch_full_size"])}'
     capability_sections = ''
     for demo in config.get('capability_demos', []):
         demo_video = './assets/' + Path(demo['video']).name
         demo_poster = './assets/' + Path(demo['image']).name
-        capability_sections += f'''<section class="section" id="{esc(demo['id'])}"><div class="section-heading"><div><p class="eyebrow">{esc(demo['eyebrow'])}</p><h2>{esc(demo['title'])}</h2></div><p>{esc(demo['description'])}</p></div><figure class="tool-figure"><div class="product-image"><video data-demo-video controls muted loop playsinline preload="metadata" poster="{demo_poster}" width="{demo['width']}" height="{demo['height']}" aria-label="{esc(demo['alt'])}"><source src="{demo_video}" type="video/mp4">{link(demo_video, 'Watch the demo')}</video></div><figcaption class="image-caption"><span>{esc(demo['caption'])}</span><span class="demo-actions"><button class="motion-toggle" data-motion-toggle hidden type="button" aria-pressed="false">Pause motion</button> {link(demo_video, 'Watch full size')}</span></figcaption></figure></section>'''
-    steps = ''.join(f'<li><h3>{esc(t)}</h3><p>{esc(p)}</p></li>' for t,p in config['steps'])
-    details = ''.join(f'<article><h3>{esc(t)}</h3><p>{esc(p)}</p></article>' for t,p in config['details'])
-    return f'''<section class="hero tool-hero"><div class="hero-grid"><div><h1>{esc(config['name'])}</h1><p class="promise">{esc(config['promise'])}</p></div><div><p class="lede">{esc(config['description'])}</p><div class="actions">{link('#get-started','Get started','button primary')}{link(repo,'View on GitHub','button')}</div></div></div></section>
-    <figure class="tool-figure"><div class="product-image">{media}</div><figcaption class="image-caption"><span>{esc(config['caption'])}</span><span class="demo-actions">{media_link}</span></figcaption></figure>
-    <section class="section two-col"><div><p class="eyebrow">How it works</p><h2>{esc(config['flow_title'])}</h2><p style="margin-top:24px">{esc(config['flow_intro'])}</p></div><ol class="numbered">{steps}</ol></section>
-    <section class="section"><div class="section-heading"><div><p class="eyebrow">Made for real work</p><h2>{esc(config['detail_title'])}</h2></div></div><div class="detail-grid">{details}</div></section>
+        capability_sections += f'''<section class="section" id="{esc(demo['id'])}">{section_head(esc(demo['title']), demo['description'])}<figure><div class="product-image"><video data-demo-video controls muted loop playsinline preload="metadata" poster="{demo_poster}" width="{demo['width']}" height="{demo['height']}" aria-label="{esc(demo['alt'])}"><source src="{demo_video}" type="video/mp4">{link(demo_video, TOOL_SITE['watch'])}</video></div><figcaption class="image-caption"><span>{esc(demo['caption'])}</span><span class="demo-actions"><button class="motion-toggle" data-motion-toggle hidden type="button" aria-pressed="false">{words(TOOL_SITE['pause'])}</button> {link(demo_video, TOOL_SITE['watch_full_size'])}</span></figcaption></figure></section>'''
+    details = f'<section class="section">{benefits(config["details"], "benefits three")}</section>' if config.get('details') else ''
+    more = f'<section class="section">{section_head(words(SHARED["more_tools"]))}{related(config["related"], args)}</section>' if config.get('related') else ''
+    note = f'{esc(config["prerequisites"])} {link(repo + "/blob/main/" + config["guide"], TOOL_SITE["guide"])}'
+    return f'''<section class="store-head">{app_icon(key, config['name'])}<div><h1>{esc(config['name'])}</h1><p class="standfirst">{esc(config['promise'])}</p><div class="actions">{button(SHARED['get'], '#get-started', 'action', 'down-right')}{button(SHARED['github'], repo, arrow='up-right')}</div></div></section>
+    <figure><div class="product-image">{media}</div><figcaption class="image-caption"><span>{esc(config['caption'])}</span><span class="demo-actions">{media_link}</span></figcaption></figure>
+    <section class="section split"><div><h2>{words(TOOL_SITE['how'])}</h2></div>{numbered(config['steps'])}</section>
+    {details}
     {capability_sections}
-    <section class="section two-col" id="get-started"><div><p class="eyebrow">Get started</p><h2>Bring it to<br>your agent.</h2><p style="margin-top:24px">Start with the outcome you want. Your agent can install the tool and use its help to carry out the work.</p>{code_box(config['prompt'],'A starting prompt','prompt')}</div><div><h3>Help your agent can use.</h3><p>Amplifier Smart Tools provide help in skill format: instructions your agent can read to understand capabilities, inputs, and how to use the tool. Ask your agent to read <code>--help</code> before getting started.</p>{code_box(config['install'],'Terminal','install')}<p class="note">{esc(config['prerequisites'])}</p><p class="note">{esc(config['model_note'])}</p><div class="compact-links">{link(repo+'/blob/main/'+config['guide'],'Setup and usage guide')}{link(repo+'#readme','Full documentation')}</div></div></section>
-    <section class="section"><div class="section-heading"><div><p class="eyebrow">Part of the same family</p><h2>Keep making.</h2></div><p>Each tool stands on its own. Explore the others when your work takes you there.</p></div>{related(config['related'],args)}</section>'''
+    <section class="section split" id="get-started"><div><h2>{words(SHARED['get_started']['title'])}</h2><p>{words(SHARED['get_started']['text'])}</p></div>{get_started(config['prompt'], note)}</section>
+    {more}'''
 
 
-def catalog(config, args, root):
+def catalog_tools(root):
+    """Read every listing into the values the catalog pages display."""
     categories, listings = load_catalog_metadata(root)
-    entries = []
-    catalog_entries = []
-    platforms = set()
+    tools = []
     for source in catalog_sources(root):
         slug = source.parent.name
         pointer = validate_pointer(read_json(source, root))
@@ -155,201 +237,195 @@ def catalog(config, args, root):
         description = 'No manifest snapshot is available yet. Inspect the source repository for current guidance.'
         meta, prov = read_snapshot(source.parent, root)
         if meta:
-            description = meta['description'].strip()
+            description = ' '.join(meta['description'].split())
         listing = listings.get(slug)
-        state = recommendation_state(pointer, prov, listing, bool(meta))
-        category = categories[listing['category']] if listing else None
-        classification = ''
-        featured_classification = ''
+        category = listing['category'] if listing else ''
+        category_label = None
         if categories is not None:
-            badge = ''
-            if state == 'recommended':
-                badge = '<span class="recommendation recommended">Recommended</span>'
-            elif state == 'needs-review':
-                badge = '<span class="recommendation needs-review">Recommendation needs review</span>'
-            category_label = (
-                html.escape(category["label"], quote=True)
-                if category else "Other")
-            category_markup = (
-                f'<div class="catalog-category"><span>Category: {category_label}</span>')
-            classification = f'{category_markup}{badge}</div>'
-            featured_classification = (
-                f'{category_markup}{"" if state == "recommended" else badge}</div>')
-        else:
-            featured_classification = classification
-        tool_platforms = meta.get('platforms', [])
-        if not isinstance(tool_platforms, list) or not all(isinstance(p,str) for p in tool_platforms):
+            category_label = categories[category]['label'] if category else STORE['other']
+        platforms = meta.get('platforms', [])
+        if not isinstance(platforms, list) or not all(isinstance(p, str) for p in platforms):
             raise ValueError(f'{slug}: invalid platforms')
-        platforms.update(tool_platforms)
-        name = meta.get('name', slug)
-        display_name = slug.replace('-', ' ').title()
-        excerpt = description if len(description) <= 250 else description[:247].rsplit(' ', 1)[0] + '...'
         use_cases = meta.get('use_cases', [])
-        if not isinstance(use_cases, list) or not all(isinstance(u,str) for u in use_cases):
+        if not isinstance(use_cases, list) or not all(isinstance(u, str) for u in use_cases):
             raise ValueError(f'{slug}: invalid use cases')
-        detail = ''
-        manifest_link = ''
-        if prov:
-            commit = prov['source']['commit']
-            if not re.fullmatch(r'[a-f0-9]{40,64}', commit):
-                raise ValueError(f'{slug}: invalid source commit')
-            source_repo = safe_url(prov['source']['repository']).removesuffix('.git')
-            path = quote(prov['original_manifest_path'],safe='/')
-            manifest_link = link(f'{source_repo}/blob/{commit}/{path}', 'Read manifest')
-            detail = f'<details><summary>Full description and source</summary><p>{esc(description)}</p><p>Manifest name: {esc(name)}</p><ul>{"".join("<li>"+esc(u)+"</li>" for u in use_cases)}</ul><p>Snapshot refreshed: {esc(prov["last_success"])}</p><p>Source commit: <code>{esc(commit)}</code></p><p>Ref: {esc(prov["source"]["ref"])} / Path: {esc(prov["source"]["path"])}</p></details>'
-        showcase = next((key for key,p in PAGES.items() if repo == repo_url(key) and key not in ('overview','catalog')),None)
-        launch = link(page_url(showcase,args),'Explore tool') if showcase else ''
-        search_values = [str(name), description, *use_cases, *tool_platforms]
-        if categories is not None:
-            category_label = category['label'] if category else 'Other'
-            search_values = [str(name), display_name, description, *use_cases,
-                             *tool_platforms, category_label]
-        search = esc(' '.join(search_values).lower())
-        tags = ''.join('<span class="tag">'+esc(p)+'</span>' for p in tool_platforms)
-        category_attr = (
-            f' data-category="{esc(listing["category"] if listing else "")}"'
-            f' data-recommended="{str(state == "recommended").lower()}"'
-            f' data-name="{esc(display_name)}"'
-            if categories is not None else '')
-        card_start = (
-            f'<article class="catalog-card" data-tool="{esc(slug)}" '
-            f'data-platforms="{esc(" ".join(tool_platforms))}" '
-            f'data-search="{search}"{category_attr}><h2>{esc(display_name)}</h2>')
-        card_end = (
-            f'<p>{esc(excerpt)}</p><div class="tool-meta">{tags}</div>{detail}'
-            f'<div class="card-links">{launch}{link(repo,"Repository")}'
-            f'{manifest_link}</div></article>')
-        card = f'{card_start}{classification}{card_end}'
-        featured_card = f'{card_start}{featured_classification}{card_end}'
-        entries.append((state != 'recommended', slug, card))
-        catalog_entries.append((state == 'recommended', slug,
-                                listing['category'] if listing else '',
-                                card, featured_card))
-    entries = [card for _, _, card in sorted(entries)]
+        source_url = repo
+        if pointer['path'] != '.' or pointer['ref'] != 'main':
+            source_url = f'{repo}/tree/{quote(pointer["ref"], safe="/")}'
+            if pointer['path'] != '.':
+                source_url += f'/{quote(pointer["path"], safe="/")}'
+        segments = urlsplit(repo).path.strip('/').split('/')
+        name = slug.replace('-', ' ').title()
+        search_values = [str(meta.get('name', slug)), name, description, *use_cases, *platforms]
+        if category_label:
+            search_values.append(category_label)
+        tools.append({
+            'slug': slug, 'name': name, 'description': description,
+            'tagline': first_sentence(description), 'use_cases': use_cases, 'platforms': platforms,
+            'category': category, 'category_label': category_label,
+            'state': recommendation_state(pointer, prov, listing, bool(meta)) if categories is not None else '',
+            'source_url': source_url,
+            'owner': segments[0] if len(segments) > 1 else urlsplit(repo).netloc, 'version': meta.get('version'),
+            'search': esc(' '.join(search_values).lower()),
+            'showcase': next((key for key in PAGES if key not in ('overview', 'catalog') and repo == repo_url(key)), None),
+        })
+    return categories, sorted(tools, key=lambda tool: (tool['name'].casefold(), tool['slug']))
+
+
+def catalog(config, args, root):
+    categories, tools = catalog_tools(root)
+
+    def chip(identity, label, selected=False):
+        return f'<button class="chip" type="button" data-category="{esc(identity)}" aria-pressed="{str(selected).lower()}">{html.escape(label, quote=True)}</button>'
+
+    chips = ''
     if categories is not None:
-        return catalog_browsing_layout(entries, catalog_entries, platforms, categories, args)
-    options = ''.join(f'<option value="{esc(p)}">{esc(p)}</option>' for p in sorted(platforms))
-    category_control, category_details, recommendation_filter, recommendation_guide = '', '', '', ''
-    empty_hint = 'Try a broader term or another platform.'
-    if categories is not None:
-        category_options = ''.join(
-            f'<option value="{esc(identity)}">{html.escape(category["label"], quote=True)}</option>'
-            for identity, category in sorted(categories.items()))
-        category_control = (
-            '<div class="category-field"><label for="category">Primary category</label>'
-            '<select id="category">'
-            f'<option value="">All categories</option>{category_options}'
-            '<option value="__unclassified__">Other</option></select></div>')
-        scopes = ''.join(
-            f'<dt>{html.escape(category["label"], quote=True)}</dt>'
-            f'<dd>{html.escape(category["scope"], quote=True)}</dd>'
-            for _, category in sorted(categories.items()))
-        category_details = (
-            '<details class="category-scopes" id="category-scopes">'
-            f'<summary>Category labels and scopes</summary><dl>{scopes}</dl></details>')
-        recommendation_guide = (
-            '<section class="recommendation-guide" aria-labelledby="recommendation-guide-title">'
-            '<h2 id="recommendation-guide-title">What does Recommended mean?</h2>'
-            '<ul>'
-            '<li>Catalog maintainers selected this tool as a preferred starting point for its '
-            'category at the recorded source revision. Selection is not certification or a '
-            'claim that specification conformance or task outcomes were checked. Any review '
-            'results and scope limitations are stated only when recorded; a snapshot refresh '
-            'does not renew the designation.</li>'
-            '<li>Compare documented capabilities, platform support, and prerequisites with '
-            'your task first. Recommended is a preference, not an override; consider other '
-            'options.</li>'
-            '<li>Unclassified or undesignated tools are not a negative quality judgment. '
-            '“Recommended only” is optional and starts unchecked, so all tools remain '
-            'visible by default.</li>'
-            '</ul></section>')
-        empty_hint = 'Try a broader term, another platform, or another category.'
-        empty_state = (
-            '<div id="empty-results" class="empty" hidden><h3 id="empty-title">No matching tools.</h3>'
-            f'<p id="empty-hint">{empty_hint}</p>'
-            '<button id="clear-filters" class="button" type="button">Clear all filters</button></div>')
+        populated = {tool['category']: tool['category_label'] for tool in tools if tool['category']}
+        chips = chip('', STORE['all'], True) + ''.join(
+            chip(identity, label) for identity, label in sorted(populated.items(), key=lambda item: item[1].casefold()))
+        if any(not tool['category'] for tool in tools):
+            chips += chip(UNCLASSIFIED, STORE['other'])
+        chips = f'<div class="chips" id="category-chips" role="group" aria-label="Category" hidden>{chips}</div>'
+    recommended = [tool for tool in tools if tool['state'] == 'recommended']
+    cards = ''.join(tool_card(tool['name'], tool['slug'], tool['tagline'], f'./tools/{tool["slug"]}/') for tool in recommended)
+    featured = f'<section class="store-section" id="featured" aria-labelledby="featured-heading"><div class="store-section-head plain"><h2 id="featured-heading">{words(STORE["recommended"])}</h2></div><div class="card-grid three">{cards}</div></section>' if cards else ''
+    count = f'{len(tools)} tool' if len(tools) == 1 else f'{len(tools)} tools'
+    rows = ''.join(app_row(tool, './tools/') for tool in tools)
+    empty, agent = STORE['empty'], STORE['agent']
+    return f'''<section class="catalog-hero"><h1>{words(STORE['title'])}</h1>
+    <p class="standfirst">{words(STORE['standfirst'])}</p>
+    <div class="store-search" id="store-search" hidden>{icon('search', 20)}<input id="tool-search" type="search" placeholder="{esc(STORE['search'])}" aria-label="{esc(STORE['search'])}" autocomplete="off"></div></section>
+    {chips}{featured}
+    <section class="store-section" aria-labelledby="all-tools-heading"><div class="store-section-head"><h2 id="all-tools-heading">{words(STORE['all_tools'])}</h2><span class="visually-hidden" id="result-count" role="status">{count}</span></div><div class="app-list">{rows}</div></section>
+    <div class="empty crop" id="empty-results" hidden><h3>{words(empty['title'])}</h3><p>{words(empty['text'])}</p><button class="button" type="button" data-clear>{words(empty['clear'])}</button></div>
+    <section class="section split"><div><h2>{words(agent['title'])}</h2><p>{words(agent['text'])}</p></div>{get_started(FAMILY_PROMPT)}</section>'''
+
+
+def listing_page(tool, tools, args):
+    """A tool's own page in the catalog."""
+    status = {'recommended': SHARED['recommended'], 'needs-review': SHARED['needs_review']}.get(tool['state'])
+    pill = f'<p class="status-pill">{words(status)}</p>' if status else ''
+    actions = button(SHARED['get'], '#get-started', 'action', 'down-right') + button(SHARED['github'], tool['source_url'], arrow='up-right')
+    if tool['showcase']:
+        actions += text_link(TOOL['website'], page_url(tool['showcase'], args))
+    facts = []
+    if tool['category_label']:
+        facts.append(('Category', html.escape(tool['category_label'], quote=True)))
+    facts.append(('Platform', esc(', '.join(PLATFORM_LABELS.get(p, p) for p in tool['platforms']) or TOOL['no_platform'])))
+    facts.append(('Publisher', esc('Microsoft' if tool['owner'] == 'microsoft' else tool['owner'])))
+    if tool['version']:
+        facts.append(('Version', esc('v' + str(tool['version']).removeprefix('v'))))
+    rest = tool['description'][len(tool['tagline']):].strip()
+    about = ''
+    if tool['use_cases']:
+        cases = ''.join(f'<li>{esc(case)}</li>' for case in tool['use_cases'][:6])
+        about = f'<section class="section split"><div><h2>{words(TOOL["use_cases"])}</h2>{f"<p>{esc(rest)}</p>" if rest else ""}</div><ul class="use-cases">{cases}</ul></section>'
+    elif rest:
+        about = f'<section class="section split"><div><h2>{words(TOOL["about"])}</h2></div><p>{esc(rest)}</p></section>'
+    others = [other for other in tools if other is not tool]
+    more = [other for other in others if tool['category'] and other['category'] == tool['category']]
+    more += [other for other in others if other['state'] == 'recommended' and other not in more]
+    more_section = f'<section class="section">{section_head(words(SHARED["more_tools"]))}<div class="app-list">{"".join(app_row(other, "../") for other in more[:3])}</div></section>' if more else ''
+    return f'''<section class="store-head">{app_icon(tool['slug'], tool['name'])}<div>{pill}<h1>{esc(tool['name'])}</h1>{facts_row(facts)}<p class="standfirst">{esc(tool['tagline'])}</p><div class="actions">{actions}</div></div></section>
+    <section class="section split" id="get-started"><div><h2>{words(SHARED['get_started']['title'])}</h2><p>{words(SHARED['get_started']['text'])}</p></div>{get_started(SHARED['tool_prompt'].format(url=tool['source_url']))}</section>
+    {about}
+    {more_section}'''
+
+
+def listing_markdown(tool):
+    """A tool's catalog page as Markdown."""
+    version = 'v' + str(tool['version']).removeprefix('v') if tool['version'] else ''
+    facts = [('Category', tool['category_label']), ('Platforms', plain(', '.join(PLATFORM_LABELS.get(p, p) for p in tool['platforms']))),
+             ('Publisher', 'Microsoft' if tool['owner'] == 'microsoft' else plain(tool['owner'])), ('Version', plain(version)),
+             ('Source', tool['source_url'])]
+    if tool['state'] == 'recommended':
+        facts.insert(0, ('Status', SHARED['recommended']))
+    lines = [f'# {plain(tool["name"])}', '', plain(tool['description']), '', *(f'- {term}: {value}' for term, value in facts if value), '',
+             f'## {LLMS["tool"]["get_started"]}', '', LLMS['tool']['start'], '', '> ' + SHARED['tool_prompt'].format(url=tool['source_url'])]
+    if tool['use_cases']:
+        lines += ['', f'## {LLMS["tool"]["use_cases"]}', '', *(f'- {plain(case)}' for case in tool['use_cases'])]
+    return '\n'.join(lines) + '\n'
+
+
+def build_listings(root, out, args, config):
+    """Write one page per catalog tool at tools/<slug>/, and its Markdown copy."""
+    _, tools = catalog_tools(root)
+    for tool in tools:
+        target = out/'tools'/tool['slug']
+        target.mkdir(parents=True, exist_ok=True)
+        page_config = dict(config, title=f'{tool["name"]} | Amplifier Smart Tools catalog', description=tool['tagline'])
+        (target/'index.html').write_text(document(page_config, listing_page(tool, tools, args), args, '../../assets/', './index.md'), encoding='utf-8')
+        (target/'index.md').write_text(listing_markdown(tool), encoding='utf-8')
+
+
+def catalog_llms(config, args, root):
+    """The catalog's llms.txt: every tool, by category, with a link to its Markdown page."""
+    categories, tools = catalog_tools(root)
+    base = page_url('catalog', args)
+
+    def section(title, members):
+        return ['', f'## {title}', '', *(f'- [{plain(tool["name"])}]({base}tools/{tool["slug"]}/index.md): {plain(tool["tagline"])}' for tool in members)]
+
+    text = LLMS['catalog']
+    lines = [f'# {text["title"]}', '', f'> {plain(config["description"])}', '',
+             f'{text["start"]} {FAMILY_PROMPT}']
+    recommended = [tool for tool in tools if tool['state'] == 'recommended']
+    if recommended:
+        lines += section(text['recommended'], recommended)
+    if categories is None:
+        lines += section(text['all_tools'], tools)
     else:
-        empty_state = (
-            f'<div id="empty-results" class="empty" hidden><h3>No matching tools.</h3><p>{empty_hint}</p>'
-            '<button id="clear-filters" class="button">Clear filters</button></div>')
-    return f'''<section class="hero catalog-hero"><p class="eyebrow">Amplifier Smart Tools / Catalog</p><h1>Find a tool.<br>Make something happen.</h1><p class="lede">Domain expertise you can put to work. Explore the tools, inspect their requirements, and bring the right one to your agent.</p><div class="actions">{link('#discovery','Get the skill','button primary')}{link(repo_url('catalog')+'#contributing','Add a tool','text-link')}</div></section>
-    <section aria-label="Browse smart tools"><div class="filters"><div class="search-field"><label for="tool-search">Search tools and use cases</label><input id="tool-search" type="search" placeholder="Try video, research, or presentations" autocomplete="off"></div><div><label for="platform">Declared platform</label><select id="platform"><option value="">All platforms</option>{options}</select></div>{category_control}{recommendation_filter}</div>{category_details}{recommendation_guide}<p class="catalog-count" id="result-count" role="status">{len(entries)} tools</p><noscript><p>Search requires JavaScript. All tools are listed below.</p></noscript><div class="catalog-grid">{''.join(entries)}</div>{empty_state}<p class="catalog-note">Descriptions and declared platforms come from the tools' own manifest snapshots. A listing does not establish installation or usability in your environment. Expand an entry to inspect its source revision and refresh time.</p></section>
-    <section class="section two-col" id="discovery"><div><p class="eyebrow">Let your agent help</p><h2>One skill.<br>The whole catalog.</h2><p style="margin-top:24px">Ask your agent to find a Smart Tool for your task. It can inspect the manifest, check the local environment, and follow the selected tool's own guidance.</p></div><div class="callout"><h3>Install the skill.</h3>{code_box(SKILL_INSTALL,'Terminal','install')}<p class="note">This installs guidance for your agent, not the tools or their credentials.</p>{link(repo_url('overview')+SKILL_PATH,'Read the skill','text-link')}</div></section>'''
+        labels = sorted({tool['category_label'] for tool in tools}, key=lambda label: (label == STORE['other'], label.casefold()))
+        for label in labels:
+            lines += section(label, [tool for tool in tools if tool['category_label'] == label])
+    return '\n'.join(lines) + '\n'
 
 
-def catalog_browsing_layout(entries, catalog_entries, platforms, categories, args):
-    """Render a shared filter bar above separate recommendation and ordinary results."""
+def spec_markdown(root, name):
+    """A chapter's source with links that resolve from the published copy."""
+    files = {f'{chapter}.md' for chapter, _ in CHAPTERS}
 
-    def tool_count(count):
-        return f'{count} tool' if count == 1 else f'{count} tools'
+    def target(match):
+        url = urlsplit(match.group(1))
+        path = url.path.removeprefix('./')
+        fragment = f'#{url.fragment}' if url.fragment else ''
+        if url.scheme or url.netloc or not path:
+            return match.group(0)
+        if path in files:
+            return f'](./{"index.md" if path == "README.md" else path}{fragment})'
+        source = (root/'spec'/path).resolve()
+        if source.exists() and source.is_relative_to(root):
+            view = 'tree' if source.is_dir() else 'blob'
+            return f']({repo_url("overview")}/{view}/main/{source.relative_to(root).as_posix()}{fragment})'
+        return match.group(0)
 
-    ordered = sorted(catalog_entries, key=lambda item: (not item[0], item[1]))
-    recommended = [item for item in ordered if item[0]]
-    all_tools = ordered
-    other_by_category = {identity: [] for identity in categories}
-    unclassified = []
-    for is_recommended, slug, identity, card, featured_card in ordered:
-        if identity in other_by_category:
-            other_by_category[identity].append(card)
-        else:
-            unclassified.append(card)
+    return plain(re.sub(r'\]\(([^)\s]+)\)', target, (root/'spec'/f'{name}.md').read_text(encoding='utf-8')))
 
-    platforms_html = ''.join(
-        f'<option value="{esc(platform)}">{esc(platform)}</option>'
-        for platform in sorted(platforms))
-    category_options = ''.join(
-        f'<option value="{esc(identity)}">'
-        f'{html.escape(category["label"], quote=True)}</option>'
-        for identity, category in sorted(categories.items(),
-                                         key=lambda item: item[1]['label'].casefold()))
-    category_options = '<option value="">All categories</option>' + category_options
-    if unclassified:
-        category_options += (
-            '<option value="__unclassified__">'
-            'Other</option>')
 
-    groups = []
-    for identity, category in sorted(categories.items(),
-                                     key=lambda item: item[1]['label'].casefold()):
-        cards = other_by_category[identity]
-        if not cards:
-            continue
-        safe_id = esc(identity)
-        label = html.escape(category['label'], quote=True)
-        groups.append(
-            f'<section class="catalog-group" id="category-group-{safe_id}" '
-            f'data-category-group="{safe_id}" aria-labelledby="category-heading-{safe_id}">'
-            f'<h3 id="category-heading-{safe_id}"><span>{label}</span>'
-            f'<span class="group-count" id="category-group-count-{safe_id}">{tool_count(len(cards))}'
-            f'</span></h3><div class="catalog-grid">{"".join(cards)}</div></section>')
-    if unclassified:
-        groups.append(
-            '<section class="catalog-group" id="category-group-unclassified" '
-            'data-category-group="__unclassified__" aria-labelledby="category-heading-unclassified">'
-            '<h3 id="category-heading-unclassified"><span>Other</span>'
-            f'<span class="group-count" id="category-group-count-unclassified">{tool_count(len(unclassified))}'
-            f'</span></h3><div class="catalog-grid">{"".join(unclassified)}</div></section>')
-
-    all_count = tool_count(len(entries))
-    tools_empty = (
-        '<p class="tools-empty" id="other-empty" hidden>'
-        'No tools match these filters.</p>'
-        if recommended else '')
-    return f'''<section class="hero catalog-hero"><p class="eyebrow">Amplifier Smart Tools / Catalog</p><h1>Find a tool.<br>Make something happen.</h1><p class="lede">Domain expertise you can put to work. Explore the tools, inspect their requirements, and bring the right one to your agent.</p><div class="actions">{link('#discovery','Get the skill','button primary')}{link(repo_url('catalog')+'#contributing','Add a tool','text-link')}</div></section>
-    <section class="catalog-browser" aria-label="Browse smart tools"><div class="filters" id="catalog-filters" hidden><div class="search-field"><label for="tool-search">Search</label><input id="tool-search" type="search" placeholder="Search tools or categories" autocomplete="off"></div><div class="category-field"><label for="category">Category</label><select id="category">{category_options}</select></div><div><label for="platform">Platform</label><select id="platform"><option value="">All platforms</option>{platforms_html}</select></div><div class="sort-field"><label for="tool-sort">Sort by</label><select id="tool-sort"><option value="category">Category</option><option value="name">Name</option></select></div><button id="clear-filters" class="button clear-filters" type="button">Clear filters</button></div><p class="catalog-count" id="result-count" role="status">{all_count}</p><p class="empty-results" id="empty-results"{' hidden' if entries else ''}>No matching tools.</p><noscript><p class="no-script-note">All tools are listed below.</p></noscript>
-    <section class="recommendation-region" id="recommended-region" aria-labelledby="recommended-heading"{' hidden' if not recommended else ''}><div class="catalog-section-heading"><h2 id="recommended-heading">Recommended</h2><span class="catalog-count" id="recommended-count">{tool_count(len(recommended))}</span></div><div class="catalog-grid" id="recommended-tools">{''.join(item[4] for item in recommended)}</div></section>
-    <section class="other-tools-region" id="other-tools" aria-labelledby="other-tools-heading"><div class="catalog-section-heading"><h2 id="other-tools-heading">All tools</h2><span class="catalog-count" id="other-count">{tool_count(len(all_tools))}</span></div>{tools_empty}<div id="other-tool-groups"><div class="catalog-grid" id="other-tools-by-name" hidden></div>{''.join(groups)}</div></section>
-    <p class="catalog-note">Descriptions and declared platforms come from the tools' own manifest snapshots. A listing does not establish installation or usability in your environment. Expand an entry to inspect its source revision and refresh time.</p></section>
-    <section class="section two-col" id="discovery"><div><p class="eyebrow">Let your agent help</p><h2>One skill.<br>The whole catalog.</h2><p style="margin-top:24px">Ask your agent to find a Smart Tool for your task. It can inspect the manifest, check the local environment, and follow the selected tool's own guidance.</p></div><div class="callout"><h3>Install the skill.</h3>{code_box(SKILL_INSTALL,'Terminal','install')}<p class="note">This installs guidance for your agent, not the tools or their credentials.</p>{link(repo_url('overview')+SKILL_PATH,'Read the skill','text-link')}</div></section>'''
+def overview_llms(config, args, root):
+    """The overview's llms.txt: what a smart tool is, and links to the Markdown copy of each page."""
+    base, catalog_url = page_url('overview', args), page_url('catalog', args)
+    text = LLMS['overview']
+    lines = [f'# {SHARED["name"]}', '', f'> {config["description"]}', '', ABOUT, '',
+             f'{text["start"]} {FAMILY_PROMPT}', '',
+             *(f'- {title}: {text}' for title, text in BENEFITS), '',
+             f'## {text["sections"]["specification"]}', '',
+             *(f'- [{label}]({base}spec/{"index" if name == "README" else name}.md)' for name, label in CHAPTERS), '',
+             f'## {text["sections"]["catalog"]}', '', f'- [{text["all_tools"]}]({catalog_url}llms.txt): {text["all_tools_note"]}',
+             *(f'- [{item["name"]}]({catalog_url}tools/{item["slug"]}/index.md): {item["tagline"]}' for item in config.get('featured', []))]
+    posts = blog_posts(root)
+    if posts:
+        lines += ['', f'## {text["sections"]["blog"]}', '', *(f'- [{post["title"]}]({base}blog/{post["slug"]}/index.md): {post["summary"]}' for post in posts)]
+    lines += ['', f'## {text["sections"]["optional"]}', '', f'- [{text["source"]}]({repo_url("overview")})',
+              f'- [{text["conformance"]}]({repo_url("overview")}/tree/main/conformance)']
+    return plain('\n'.join(lines)) + '\n'
 
 
 def build_reader(root, out, args, config):
     """Render the checked-out specification; do not maintain a second copy."""
     from markdown_it import MarkdownIt
     md = MarkdownIt('commonmark', {'html': False}).enable('table')
-    chapters = [('README', 'Introduction'), ('structure', 'Structure'),
-                ('manifest', 'Manifest'), ('invocation', 'Invocation'),
-                ('packaging', 'Packaging'), ('examples', 'Examples')]
+    chapters = CHAPTERS
     chapter_files = {name+'.md': 'index.html' if name == 'README' else name+'.html' for name, _ in chapters}
     target = out/'spec'
     target.mkdir(exist_ok=True)
@@ -368,7 +444,7 @@ def build_reader(root, out, args, config):
                     anchor += '-'+str(n)
                 token.attrSet('id', anchor)
                 if token.tag == 'h1':
-                    tokens[i+1].content = 'Amplifier Smart Tools' if name == 'README' else text
+                    tokens[i+1].content = SHARED['name'] if name == 'README' else text
                     tokens[i+1].children = md.parseInline(tokens[i+1].content)[0].children
                 if token.tag == 'h2':
                     headings.append((anchor,text))
@@ -392,33 +468,151 @@ def build_reader(root, out, args, config):
         page_nav = ''
         if index:
             prev_name, prev_label = chapters[index-1]
-            page_nav += link('./'+chapter_files[prev_name+'.md'], 'Previous: '+prev_label)
+            page_nav += text_link(READER['previous']+prev_label, './'+chapter_files[prev_name+'.md'], '')
         if index+1 < len(chapters):
             next_name, next_label = chapters[index+1]
-            page_nav += link('./'+chapter_files[next_name+'.md'], 'Next: '+next_label)
-        body = f'''<div class="reader-layout"><aside class="reader-sidebar"><p class="eyebrow">Specification</p><nav aria-label="Specification chapters">{chapter_nav}</nav><details class="reader-toc"><summary>On this page</summary><nav aria-label="On this page">{toc}</nav></details>{link(repo_url('overview')+'/blob/main/spec/'+name+'.md','View source on GitHub','reader-source')}</aside><article class="reader-content"><p class="eyebrow">Amplifier Smart Tools / Specification</p>{rendered}<nav class="reader-pagination" aria-label="Chapter navigation">{page_nav}</nav></article></div>'''
+            page_nav += text_link(READER['next']+next_label, './'+chapter_files[next_name+'.md'], 'right')
+        body = f'''<div class="reader-layout"><aside class="reader-sidebar"><p class="eyebrow">{words(READER['title'])}</p><nav aria-label="Specification chapters">{chapter_nav}</nav>{link(repo_url('overview')+'/blob/main/spec/'+name+'.md',READER['source'],'reader-source')}</aside><details class="reader-toc" open><summary>{words(READER['outline'])}</summary><nav aria-label="On this page">{toc}</nav></details><article class="reader-content">{rendered}<nav class="reader-pagination" aria-label="Chapter navigation">{page_nav}</nav></article></div>'''
         page_config = dict(config, kind='reader', title=label+' | Amplifier Smart Tools specification',description='Read the '+label.lower()+' chapter of the Amplifier Smart Tools specification.')
-        (target/chapter_files[name+'.md']).write_text(document(page_config,body,args,'../assets/'))
+        copy = ('index' if name == 'README' else name) + '.md'
+        (target/chapter_files[name+'.md']).write_text(document(page_config, body, args, '../assets/', './'+copy))
+        (target/copy).write_text(spec_markdown(root, name), encoding='utf-8')
 
 
-def document(config, body, args, asset_prefix='./assets/'):
+def image_size(path):
+    """Pixel size of a PNG or GIF, read from the file header."""
+    head = path.read_bytes()[:24]
+    size = None
+    if head[:8] == b'\x89PNG\r\n\x1a\n' and len(head) == 24:
+        size = int.from_bytes(head[16:20], 'big'), int.from_bytes(head[20:24], 'big')
+    elif head[:6] in (b'GIF87a', b'GIF89a') and len(head) >= 10:
+        size = int.from_bytes(head[6:8], 'little'), int.from_bytes(head[8:10], 'little')
+    return size if size and all(size) else None
+
+
+def blog_posts(root):
+    """Posts at site/blog/<slug>/post.md, newest first."""
+    posts = []
+    for source in sorted((root/'site/blog').glob('*/post.md')):
+        slug = source.parent.name
+        if not re.fullmatch(r'[a-z0-9]+(-[a-z0-9]+)*', slug):
+            raise ValueError(f'{slug}: post directory must be a lowercase slug')
+        parts = source.read_text(encoding='utf-8').split('---\n', 2)
+        if len(parts) != 3 or parts[0].strip():
+            raise ValueError(f'{slug}: post must start with front matter')
+        try:
+            meta = yaml.safe_load(parts[1])
+        except yaml.YAMLError as error:
+            raise ValueError(f'{slug}: front matter is not valid YAML') from error
+        if not isinstance(meta, dict) or not all(meta.get(key) for key in ('title', 'date', 'author', 'summary')):
+            raise ValueError(f'{slug}: front matter needs title, date, author, and summary')
+        # A datetime is a date subclass, and it cannot be ordered against a plain date.
+        if type(meta['date']) is not date:
+            raise ValueError(f'{slug}: date must be written as YYYY-MM-DD')
+        posts.append({'slug': slug, 'directory': source.parent, 'body': parts[2],
+                      'title': str(meta['title']), 'date': meta['date'], 'author': str(meta['author']),
+                      'summary': str(meta['summary']), 'affiliation': str(meta.get('affiliation', ''))})
+    return sorted(posts, key=lambda post: (post['date'], post['slug']), reverse=True)
+
+
+def post_body(post, md, target):
+    """Render a post. An image alone in a paragraph becomes a figure; an italic line after it is the caption."""
+    tokens = md.parse(plain(post['body']))
+    parts, start, i = [], 0, 0
+    while i < len(tokens):
+        kids = (tokens[i + 1].children or []) if tokens[i].type == 'paragraph_open' else []
+        if len(kids) != 1 or kids[0].type != 'image':
+            if any(kid.type == 'image' for kid in tokens[i].children or []):
+                raise ValueError(f'{post["slug"]}: an image must stand alone in its paragraph')
+            i += 1
+            continue
+        parts.append(md.renderer.render(tokens[start:i], md.options, {}))
+        name = unquote(kids[0].attrGet('src'))
+        source = post['directory']/name
+        if Path(name).name != name or not source.is_file():
+            raise ValueError(f'{post["slug"]}: an image must be a file beside the post')
+        shutil.copy2(source, target/name)
+        size = image_size(source)
+        dimensions = f' width="{size[0]}" height="{size[1]}"' if size else ''
+        i += 3
+        caption = ''
+        following = (tokens[i + 1].children or []) if i < len(tokens) and tokens[i].type == 'paragraph_open' else []
+        marks = [kid.type for kid in following if kid.type in ('em_open', 'em_close')]
+        if len(following) > 2 and marks == ['em_open', 'em_close'] and following[0].type == 'em_open' and following[-1].type == 'em_close':
+            caption = f'<figcaption class="image-caption">{md.renderer.renderInline(following[1:-1], md.options, {})}</figcaption>'
+            i += 3
+        parts.append(f'<figure><div class="product-image"><img src="./{quote(name)}" alt="{esc(kids[0].content)}"{dimensions} loading="lazy"></div>{caption}</figure>')
+        start = i
+    parts.append(md.renderer.render(tokens[start:], md.options, {}))
+    return ''.join(parts)
+
+
+def post_markdown(post, published, address):
+    """A post as Markdown, with the facts of its header. Images get the post's address, so they load from a pasted copy."""
+    def image(match):
+        beside = (post['directory']/unquote(match[2])).is_file()
+        return f'![{match[1]}]({address if beside else ""}{match[2]})'
+
+    body = re.sub(r'!\[([^\]]*)\]\(([^)\s]+)\)', image, post['body'].strip())
+    byline = [published, f'{BLOG["written_by"]} {post["author"]}', post['affiliation']]
+    return plain('\n'.join([f'# {post["title"]}', '', *filter(None, byline), '', body])) + '\n'
+
+
+def build_blog(root, out, args, config):
+    """Render site/blog into a list of posts and one page per post."""
+    posts = blog_posts(root)
+    if not posts:
+        return
+    from markdown_it import MarkdownIt
+    md = MarkdownIt('commonmark', {'html': False})
+    rows = ''
+    for post in posts:
+        target = out/'blog'/post['slug']
+        target.mkdir(parents=True, exist_ok=True)
+        published = f'{post["date"]:%B} {post["date"].day}, {post["date"].year}'
+        facts = [('Published', esc(published)), ('Author', esc(post['author']))]
+        if post['affiliation']:
+            facts.append(('Affiliation', esc(post['affiliation'])))
+        minutes = max(1, round(len(re.findall(r'\w+', post['body'])) / 230))
+        facts.append(('Reading time', f'{minutes} {words(BLOG["reading"])}'))
+        body = f'''<article class="reader-content post"><header class="post-header"><p class="eyebrow"><a href="../">{words(BLOG['title'])}</a></p><h1>{esc(post['title'])}</h1><div class="post-meta copy-region">{facts_row(facts)}<a class="copy-markdown" href="./index.md" data-copy-markdown>{icon('copy', 14)}{icon('check', 14)}{words(BLOG['copy'])}</a><p class="visually-hidden" role="status" aria-live="polite"></p></div></header>{post_body(post, md, target)}<nav class="reader-pagination" aria-label="Blog">{text_link(BLOG['all'], '../', '')}</nav></article>'''
+        page_config = dict(config, kind='blog', title=f'{post["title"]} | Amplifier Smart Tools', description=post['summary'])
+        (target/'index.html').write_text(document(page_config, body, args, '../../assets/', './index.md'), encoding='utf-8')
+        (target/'index.md').write_text(post_markdown(post, published, f'{page_url("overview", args)}blog/{post["slug"]}/'), encoding='utf-8')
+        rows += f'<article class="post-row"><p class="post-date">{esc(published)}</p><div><h2><a href="./{post["slug"]}/">{esc(post["title"])}</a></h2><p>{esc(post["summary"])}</p></div></article>'
+    index = f'<section class="catalog-hero"><h1>{words(BLOG["title"])}</h1></section><div class="post-list">{rows}</div>'
+    page_config = dict(config, kind='blog', title=f'{BLOG["title"]} | {SHARED["name"]}', description=BLOG['description'])
+    (out/'blog/index.html').write_text(document(page_config, index, args, '../assets/'), encoding='utf-8')
+
+
+def document(config, body, args, asset_prefix='./assets/', markdown=''):
+    """Wrap a page body in the shared shell. `markdown` is the URL of the page's Markdown copy."""
     key = config['key']
+    machine = f'<link rel="alternate" type="text/markdown" href="{markdown}">' if markdown else ''
+    if key in ('overview', 'catalog'):
+        machine += f'<link rel="describedby" type="text/plain" href="{page_url(key, args)}llms.txt">'
+    overview_url = page_url('overview', args)
+    labels = SHARED['navigation']
     destinations = [
-        (page_url('catalog', args), 'Find', key == 'catalog'),
-        (page_url('overview', args) + '#build', 'Build', False),
-        (SPEC, 'Learn', config['kind'] == 'reader'),
+        (page_url('catalog', args), words(labels['catalog']), key == 'catalog'),
+        (overview_url + 'blog/', words(labels['blog']), config['kind'] == 'blog'),
+        (SPEC, words(labels['specification']), config['kind'] == 'reader'),
+        (repo_url(key), words(labels['github']), False),
     ]
     nav = ''.join(f'<a href="{url}"' + (' aria-current="page"' if current else '') + f'>{label}</a>' for url, label, current in destinations)
-    team_identity = '<div class="team"><strong>MADE</strong><span>Math &middot; AI &middot; Design &middot; Engineering</span></div>'
-    organization = '<span class="organization">Microsoft Office of the CTO</span>'
+    footer_links = ''.join(f'<a href="{url}">{label}</a>' for url, label, _ in destinations)
+    menu_rows = ''.join(f'<li><a href="{url}"><span>{label}</span>{icon("arrow-up-right", 36)}</a></li>' for url, label, _ in destinations)
+    brand = f'<a class="brand" href="{overview_url}">{mark()}<span class="brand-name">{words(SHARED["name"])}</span></a>'
+    before, after = SHARED['credit']
+    credit = f'<p class="credit">{words(before)} <strong>made</strong> {words(after)}</p>'
     title = config['title']
     description = config['description']
     accent = config.get('accent','#486b61')
     if not re.fullmatch(r'#[0-9a-fA-F]{6}',accent):
         raise ValueError('Accent must be a hex color')
     return f'''<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{esc(title)}</title><meta name="description" content="{esc(description)}"><meta name="theme-color" content="#f6f4ee"><meta property="og:title" content="{esc(title)}"><meta property="og:description" content="{esc(description)}"><meta property="og:type" content="website"><link rel="icon" href="{asset_prefix}favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="{asset_prefix}style.css"><script src="{asset_prefix}site.js" defer></script></head>
-<body style="--accent:{accent}"><a class="skip" href="#main">Skip to content</a><div class="attribution"><div class="wrap">{team_identity}{organization}</div></div><header class="masthead"><div class="wrap"><a class="brand" href="{page_url('overview',args)}"><img class="brand-motion" src="{asset_prefix}mark-loop.png" data-motion-src="{asset_prefix}mark-loop.gif" data-still-src="{asset_prefix}mark-loop.png" alt="" width="42" height="42"><span class="brand-name">Amplifier Smart Tools</span></a><nav class="nav" aria-label="Main navigation">{nav}{link(repo_url(key),'GitHub')}</nav></div></header><main class="wrap" id="main">{body}</main><footer class="site-footer"><div class="wrap footer-grid"><div><strong class="footer-brand">Amplifier Smart Tools</strong><p>Expertise, built into the tool.</p><div class="footer-attribution">{team_identity}{organization}</div></div><nav class="footer-links" aria-label="Footer">{nav}{link(repo_url(key),'GitHub')}</nav></div></footer></body></html>'''
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{esc(title)}</title><meta name="description" content="{esc(description)}"><meta name="theme-color" content="#f3f0e8"><meta property="og:title" content="{esc(title)}"><meta property="og:description" content="{esc(description)}"><meta property="og:type" content="website"><link rel="icon" href="{asset_prefix}favicon.svg" type="image/svg+xml">{machine}<link rel="stylesheet" href="{asset_prefix}style.css"><script src="{asset_prefix}site.js" defer></script></head>
+<body style="--accent:{accent}"><a class="skip" href="#main">{words(SHARED['skip'])}</a>{GLYPH_DEFS}<header class="masthead"><div class="wrap">{brand}<nav class="nav" aria-label="Main navigation">{nav}</nav><button class="menu-toggle" type="button" data-menu-toggle aria-expanded="false" aria-controls="menu" aria-label="Open menu">{icon('menu', 24)}</button></div></header><main class="wrap" id="main">{body}</main><footer class="site-footer"><div class="wrap footer-grid">{brand}<nav class="footer-links" aria-label="Footer">{footer_links}</nav>{credit}</div></footer><div class="menu" id="menu" role="dialog" aria-modal="true" aria-label="Menu"><div class="wrap"><div class="menu-head">{brand}<button class="menu-close" type="button" data-menu-close aria-label="Close menu">{icon('close', 22)}</button></div>{button(SHARED['menu_action'], overview_url + '#get-started', 'primary pill', 'right')}<ul class="menu-rows">{menu_rows}</ul></div></div></body></html>'''
 
 
 def main():
@@ -449,13 +643,18 @@ def main():
             raise ValueError('Media must belong to the repository')
         shutil.copy2(source,out/'assets'/source.name)
     kind = config['kind']
-    body = overview(config,args) if kind == 'overview' else catalog(config,args,root) if kind == 'catalog' else tool_page(config,args)
+    body = overview(config,args,root) if kind == 'overview' else catalog(config,args,root) if kind == 'catalog' else tool_page(config,args)
     doc = document(config, body, args)
     if kind == 'overview':
         build_reader(root, out, args, config)
+        build_blog(root, out, args, config)
+        (out/'llms.txt').write_text(overview_llms(config, args, root), encoding='utf-8')
+    if kind == 'catalog':
+        build_listings(root, out, args, config)
+        (out/'llms.txt').write_text(catalog_llms(config, args, root), encoding='utf-8')
     (out/'index.html').write_text(doc,encoding='utf-8')
     (out/'.nojekyll').touch()
-    (out/'assets/favicon.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="#f6f4ee"/><g fill="none" stroke="#92743a"><rect x="7" y="7" width="26" height="26"/><rect x="11" y="11" width="18" height="18" transform="rotate(20 20 20)"/><rect x="15" y="15" width="10" height="10" transform="rotate(40 20 20)"/></g></svg>')
+    (out/'assets/favicon.svg').write_text(FAVICON)
     print(f'Built {config["key"]}: {out}')
 
 
