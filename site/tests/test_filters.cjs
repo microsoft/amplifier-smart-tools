@@ -314,8 +314,14 @@ test('a copy button writes its prompt to the clipboard and confirms', async () =
   assert.equal(view.status.textContent, '');
   await view.button.dispatch('click');
   assert.deepEqual(written, ['Go to https://example.com/tool and install it.']);
-  assert.equal(view.status.textContent, 'Copied. Paste it into your agent.');
+  assert.equal(view.status.textContent, 'Copied.');
   assert.equal(view.selected, null);
+  assert.deepEqual(view.button.attributes, { 'data-copied': '' });
+  await view.button.dispatch('click');
+  assert.deepEqual([...view.timers.values()].map(timer => timer.delay), [1600]);
+  view.elapse();
+  assert.deepEqual(view.button.attributes, {});
+  assert.equal(view.status.textContent, '');
 });
 
 test('a copy button selects the prompt when the clipboard is unavailable', async () => {
@@ -323,6 +329,8 @@ test('a copy button selects the prompt when the clipboard is unavailable', async
   await view.button.dispatch('click');
   assert.equal(view.selected, view.code);
   assert.equal(view.status.textContent, 'Text selected. Use your usual copy command.');
+  assert.deepEqual(view.button.attributes, {});
+  assert.equal(view.timers.size, 0);
 });
 
 const MARKDOWN = '# Fixture post\n\nFixture body.\n';

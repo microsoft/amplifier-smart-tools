@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a standalone Smart Tools page. Theme v0.2.0, MIT licensed."""
+"""Build a standalone Smart Tools page. Theme v0.3.0, MIT licensed."""
 import argparse
 import html
 import json
@@ -18,7 +18,7 @@ from catalog_metadata import (
     recommendation_state, validate_pointer,
 )
 from graphics import (
-    ARTWORK, FAVICON, GLYPH_DEFS, field, flow_diagram, icon, mark, tool_art,
+    ARTWORK, GLYPH_DEFS, favicon, field, flow_diagram, icon, mark, tool_art,
 )
 
 THEME = Path(__file__).resolve().parent
@@ -96,7 +96,9 @@ def get_link(name, url):
 
 
 def code_box(text, title, identity):
-    return f'''<div class="copy-region"><div class="code-box"><div class="code-head"><span>{esc(title)}</span><button class="copy" type="button" data-copy="{identity}" aria-label="{esc(SHARED['copy'])} {esc(title)}">{icon('copy', 14)}{words(SHARED['copy'])}</button></div><pre id="{identity}">{esc(text)}</pre></div><p class="status-message" role="status" aria-live="polite"></p></div>'''
+    # A long address may break after a slash, so a narrow box does not cut a word in two. The copied text is the same.
+    shown = re.sub(r'(?<![:/])/(?=\w)', '/<wbr>', esc(text))
+    return f'''<div class="copy-region"><div class="code-box"><div class="code-head"><span>{esc(title)}</span><button class="copy" type="button" data-copy="{identity}" aria-label="{esc(SHARED['copy'])} {esc(title)}">{icon('copy', 14)}{icon('check', 14)}{words(SHARED['copy'])}</button></div><pre id="{identity}">{shown}</pre></div><p class="visually-hidden" role="status" aria-live="polite"></p></div>'''
 
 
 def app_icon(slug, name):
@@ -104,21 +106,17 @@ def app_icon(slug, name):
     return f'<span class="{classes}" style="--field:{field(slug)}"><svg viewBox="0 0 64 64" aria-hidden="true">{tool_art(slug, plain(name))}</svg></span>'
 
 
-def section_head(title, text=''):
-    return f'<div class="section-head"><h2>{title}</h2>{f"<p>{esc(text)}</p>" if text else ""}</div>'
+def section_head(title, text='', classes=''):
+    return f'<div class="{f"section-head {classes}".strip()}"><h2>{title}</h2>{f"<p>{esc(text)}</p>" if text else ""}</div>'
 
 
 def numbered(steps):
     return '<ol class="numbered">' + ''.join(f'<li><h3>{esc(t)}</h3>{f"<p>{esc(p)}</p>" if p else ""}</li>' for t, p in steps) + '</ol>'
 
 
-def benefits(items, classes='benefits'):
-    return f'<div class="{classes}">' + ''.join(f'<div><strong>{esc(t)}</strong><p>{esc(p)}</p></div>' for t, p in items) + '</div>'
-
-
-def reasons(items):
+def reasons(items, columns=4):
     tiles = zip(items, cycle(('blue', 'green', 'yellow', 'red')))
-    return '<div class="benefits cards">' + ''.join(
+    return f'<div class="benefits cards{"" if columns == 4 else f" of-{columns}"}">' + ''.join(
         f'<div><span class="tile" style="--swatch:var(--tint-{tint})">{icon(item["icon"], 22)}</span>'
         f'<strong>{esc(item["title"])}</strong><p>{esc(item["text"])}</p></div>' for item, tint in tiles) + '</div>'
 
@@ -139,9 +137,20 @@ def tool_card(name, slug, tagline, url):
     return f'''<article class="{classes}" style="--field:{field(slug)}" data-tool="{esc(slug)}"><svg class="tool-card-art" viewBox="0 0 64 64" aria-hidden="true">{tool_art(slug, plain(name))}</svg><div class="tool-card-top"></div><div class="tool-card-body"><div><h3 class="tool-card-title"><a href="{html.escape(url, quote=True)}">{esc(name)}</a></h3><p class="tool-card-sub">{esc(tagline)}</p></div>{get_link(name, url)}</div></article>'''
 
 
-def app_row(tool, base):
+def tool_url(tool, base, args):
+    """A recommended tool with its own website links there. Any other tool links to its catalog page."""
+    if tool['state'] == 'recommended' and tool['showcase']:
+        return page_url(tool['showcase'], args)
+    return f'{base}{tool["slug"]}/'
+
+
+def featured_url(slug, catalog_url, args):
+    """A featured tool with its own website links there. Any other tool links to its catalog page."""
+    return page_url(slug, args) if slug in PAGES and slug not in ('overview', 'catalog') else f'{catalog_url}tools/{slug}/'
+
+
+def app_row(tool, url):
     """One line of a tool list: icon, name, one sentence, Get."""
-    url = f'{base}{tool["slug"]}/'
     marker = f'<span class="tag">{words(SHARED["recommended"])}</span>' if tool['state'] == 'recommended' else ''
     review = f'<span class="tag">{words(SHARED["needs_review"])}</span>' if tool['state'] == 'needs-review' else ''
     return f'''<article class="app-row" data-tool="{esc(tool['slug'])}" data-category="{esc(tool['category'] or UNCLASSIFIED)}" data-search="{tool['search']}">{app_icon(tool['slug'], tool['name'])}<div><h3 class="app-row-name"><a href="{url}">{esc(tool['name'])}</a>{marker}</h3><p>{esc(tool['tagline'])}</p>{review}</div>{get_link(tool['name'], url)}</article>'''
@@ -151,7 +160,8 @@ def related(keys, args):
     rows = ''
     for key in keys:
         name, url = PAGES[key]['name'], page_url(key, args)
-        rows += f'<article class="app-row">{app_icon(key, name)}<div><h3 class="app-row-name"><a href="{url}">{esc(name)}</a></h3></div>{get_link(name, url)}</article>'
+        tagline = f'<p>{esc(PAGES[key]["tagline"])}</p>' if PAGES[key].get('tagline') else ''
+        rows += f'<article class="app-row">{app_icon(key, name)}<div><h3 class="app-row-name"><a href="{url}">{esc(name)}</a></h3>{tagline}</div>{get_link(name, url)}</article>'
     return f'<div class="app-list">{rows}</div>'
 
 
@@ -161,7 +171,7 @@ def first_sentence(text):
     return match.group(0) if match else text
 
 
-def news(config, root, catalog_url):
+def news(config, args, root, catalog_url):
     """Newest entries from site.json and the blog. On one date, a site.json entry comes first."""
     items = []
     for entry in config.get('news', []):
@@ -170,7 +180,7 @@ def news(config, root, catalog_url):
             raise ValueError('News tool must be a catalog directory name')
         if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', str(entry['date'])):
             raise ValueError('News date must be written as YYYY-MM-DD')
-        items.append((date.fromisoformat(entry['date']), entry['label'], entry['title'], f'{catalog_url}tools/{slug}/' if slug else ''))
+        items.append((date.fromisoformat(entry['date']), entry['label'], entry['title'], featured_url(slug, catalog_url, args) if slug else ''))
     items += [(post['date'], HOME['news']['blog'], post['title'], f'./blog/{post["slug"]}/') for post in blog_posts(root)]
     items.sort(key=lambda item: item[0], reverse=True)
     rows = ''
@@ -186,44 +196,256 @@ def overview(config, args, root):
     for item in config.get('featured', []):
         if not re.fullmatch(r'[a-z0-9]+(-[a-z0-9]+)*', item['slug']):
             raise ValueError('Featured slug must be a catalog directory name')
-        cards += tool_card(item['name'], item['slug'], item['tagline'], f'{catalog_url}tools/{item["slug"]}/')
+        cards += tool_card(item['name'], item['slug'], item['tagline'], featured_url(item['slug'], catalog_url, args))
     featured = f'''<section class="section">{section_head(words(HOME['featured']['title']))}<div class="card-grid three">{cards}</div><div class="actions">{text_link(HOME['featured']['all'], catalog_url, 'right')}</div></section>''' if cards else ''
     hero, build = HOME['hero'], HOME['build']
     return f'''<section class="hero"><div class="hero-grid"><div>
       <h1>{lines(hero['headline'])}</h1>
       <div class="hero-start" id="get-started"><p class="eyebrow">{words(hero['eyebrow'])}</p>{code_box(FAMILY_PROMPT, SHARED['prompt_label'], 'prompt')}</div>
       <div class="actions">{button(hero['catalog'], catalog_url, 'action', 'right')}{text_link(hero['build'], '#build', 'down-right')}</div>
-    </div>{news(config, root, catalog_url)}</div></section>
+    </div>{news(config, args, root, catalog_url)}</div></section>
     {featured}
     <section class="section" id="why">{section_head(words(HOME['why']['title']))}{reasons(HOME['why']['items'])}<div class="build" id="build"><div><h3>{lines(build['title'])}</h3><div class="actions">{text_link(build['specification'], SPEC)}{text_link(build['conformance'], repo_url('overview') + '/tree/main/conformance')}</div></div>{numbered((step, '') for step in BUILD_STEPS)}</div></section>
     <section class="section" id="what">{section_head(words(HOME['what']['title']))}<p class="about">{esc(ABOUT)}</p>{flow_diagram(TEXT['diagram'])}</section>'''
 
 
-def tool_page(config, args):
-    key = config['key']
+def requests(title, items):
+    """Things to ask an agent, each with its own copy button."""
+    rows = ''.join(
+        f'<li class="copy-region"><p id="request-{number}">{esc(item)}</p>'
+        f'<button class="copy-request" type="button" data-copy="request-{number}" aria-label="{esc(SHARED["copy"])}">{icon("copy", 16)}{icon("check", 16)}</button>'
+        f'<p class="visually-hidden" role="status" aria-live="polite"></p></li>' for number, item in enumerate(items, 1))
+    return f'<aside class="news requests" aria-labelledby="requests-title"><h2 id="requests-title">{esc(title)}</h2><ul class="news-list">{rows}</ul></aside>'
+
+
+def manifest_facts(root):
+    """Version and platforms from the tool's own manifest, so the page follows each release."""
+    pointer = root/'smart-tool.json'
+    if not pointer.is_file():
+        return []
+    manifest = (root/json.loads(pointer.read_text(encoding='utf-8'))['manifest']).read_text(encoding='utf-8')
+    meta = yaml.safe_load(manifest.split('---')[1])
+    facts = [('Version', f'v{esc(meta["version"])}')] if meta.get('version') else []
+    if meta.get('platforms'):
+        facts.append(('Platform', esc(', '.join(PLATFORM_LABELS.get(name, name) for name in meta['platforms']))))
+    return facts
+
+
+def side_links(links, repo):
+    """Links beside a block. A path is a file in the tool's repository."""
+    return ''.join(text_link(item['label'], item.get('url') or f'{repo}/blob/main/{item["path"]}') for item in links)
+
+
+def heading(part, classes=''):
+    """A section's heading, with the sentence beside it when it has one."""
+    return section_head(esc(part['title']), part.get('text', ''), classes) if part.get('title') else ''
+
+
+def pairs(items):
+    """Entries written as a title, or as a title and a text."""
+    return [(item, '') if isinstance(item, str) else tuple(item) for item in items]
+
+
+def figure(media, caption, actions='', zoom=False):
+    """A picture or video. Without a caption it stands alone, with no row of links under it."""
+    actions = f'<span class="demo-actions">{actions}</span>' if actions else ''
+    under = f'<figcaption class="image-caption"><span>{esc(caption)}</span>{actions}</figcaption>' if caption else ''
+    return f'<figure><div class="product-image{" zoom" if zoom else ""}">{media}</div>{under}</figure>'
+
+
+def media_section(part, repo, name):
+    """A picture or a looping video of the tool. With a title it is a section of its own."""
+    image = './assets/' + Path(part['image']).name
+    size = f'width="{part["width"]}" height="{part["height"]}"'
+    if part.get('video'):
+        video = './assets/' + Path(part['video']).name
+        player = f'<video data-demo-video controls muted loop playsinline preload="metadata" poster="{image}" {size} aria-label="{esc(part["alt"])}"><source src="{video}" type="video/mp4">{link(video, TOOL_SITE["watch"])}</video>'
+        shown = figure(player, part.get('caption'), f'<button class="motion-toggle" data-motion-toggle hidden type="button" aria-pressed="false">{words(TOOL_SITE["pause"])}</button> {link(video, TOOL_SITE["watch_full_size"])}')
+    else:
+        shown = figure(f'<a href="{image}" aria-label="Open full-size {esc(name)} image"><img src="{image}" alt="{esc(part["alt"])}" {size}></a>', part.get('caption'), link(image, TOOL_SITE['full_size']), part.get('zoom', False))
+    if not part.get('title'):
+        return shown
+    return f'<section class="section"{anchor(part)}>{heading(part)}{shown}</section>'
+
+
+def anchor(part):
+    return f' id="{esc(part["id"])}"' if part.get('id') else ''
+
+
+def band(part, repo):
+    """Numbered steps on a dark band, beside a heading and its links."""
+    title = part.get('title', TOOL_SITE['how'])
+    links = f'<div class="actions">{side_links(part["links"], repo)}</div>' if part.get('links') else ''
+    return f'<div class="build"><div><h3>{esc(title) if isinstance(title, str) else lines(title)}</h3>{links}</div>{numbered(pairs(part["items"]))}</div>'
+
+
+def steps_section(part, repo, name):
+    return f'<section class="section joined"{anchor(part)}>{band(part, repo)}</section>'
+
+
+def cards_section(part, repo, name):
+    """Cards under an icon tile. Steps given with the cards sit on a band under them."""
+    cards = [item if isinstance(item, dict) else dict(zip(('title', 'text'), item), icon=shape)
+             for item, shape in zip(part.get('items', []), cycle(('box', 'plug', 'window', 'check')))]
+    under = band(part['steps'], repo) if part.get('steps') else ''
+    return f'<section class="section"{anchor(part)}>{heading(part)}{reasons(cards, len(cards)) if cards else ""}{under}</section>'
+
+
+def report_section(part, repo, name):
+    """An example of what a check returns: each finding, its state, and its evidence."""
+    marks = {'passed': 'check', 'failed': 'close', 'skipped': 'minus'}
+    labels = TOOL_SITE['states']
+    rows = ''
+    for finding in part['findings']:
+        state = finding['state']
+        text = f'<p>{esc(finding["text"])}</p>' if finding.get('text') else ''
+        evidence = ''.join(f'<li>{esc(item)}</li>' for item in finding.get('evidence', []))
+        evidence = f'<ul class="evidence">{evidence}</ul>' if evidence else ''
+        rows += (f'<li class="finding {state}"><span class="state">{icon(marks[state], 18)}</span>'
+                 f'<div><p class="finding-state">{words(labels[state])}</p><h3>{esc(finding["title"])}</h3>{text}</div>{evidence}</li>')
+    counts = [(state, sum(finding['state'] == state for finding in part['findings'])) for state in marks]
+    tally = ''.join(f'<li class="{state}">{count} {words(labels[state]).lower()}</li>' for state, count in counts if count)
+    caption = f'<p class="image-caption">{esc(part["caption"])}</p>' if part.get('caption') else ''
+    return (f'<section class="section"{anchor(part)}>{heading(part)}<div class="report"><div class="report-head">'
+            f'<div><p class="eyebrow">{words(TOOL_SITE["request"])}</p><p class="report-request">{esc(part["request"])}</p></div>'
+            f'<ul class="tally">{tally}</ul></div><ol class="findings">{rows}</ol></div>{caption}</section>')
+
+
+def embed_section(part, repo, name):
+    """A working part of the tool in a frame. The build copies its directory and files beside the page, with its content as content.json."""
+    frame = (f'<iframe class="embed" src="./{quote(Path(part["directory"]).name)}/" title="{esc(part["label"])}" '
+             f'height="{int(part.get("height", 600))}" loading="lazy"></iframe>')
+    return f'<section class="section"{anchor(part)}>{heading(part, "stacked")}{figure(frame, part.get("caption"))}</section>'
+
+
+def embed_sources(root, part):
+    """An embed's directory and its other files, each in the repository."""
+    sources = [(root/path).resolve() for path in (part['directory'], *part.get('files', []))]
+    if not all(source.is_relative_to(root) for source in sources):
+        raise ValueError('Embedded files must belong to the repository')
+    return sources[0], sources[1:]
+
+
+def enclosure_section(part, repo, name):
+    """What sits inside a boundary, and how the outside reaches it."""
+    def row(item):
+        return (f'<div class="flow-item"><span class="tile">{icon(item["icon"], 22)}</span>'
+                f'<div><strong>{esc(item["name"])}</strong><span>{esc(item["text"])}</span></div></div>')
+
+    outside, inside = part['outside'], part['inside']
+    footer = f'<p class="dimension">{esc(part["footer"])}</p>' if part.get('footer') else ''
+    return (f'<section class="section"{anchor(part)}>{heading(part)}<div class="flow enclosure">'
+            f'<div class="flow-panel"><h3>{esc(outside["title"])}</h3>{"".join(row(item) for item in outside["rows"])}</div>'
+            f'<div class="flow-arrow"><span>{esc(part["link"])}</span>{icon("arrow-right", 28)}</div>'
+            f'<div class="flow-panel wall"><h3>{esc(inside["title"])}</h3><p class="eyebrow">{esc(inside["note"])}</p>'
+            f'<div class="enclosure-parts">{"".join(row(item) for item in inside["parts"])}</div></div></div>{footer}</section>')
+
+
+def blocks_section(part, repo, name):
+    """The parts of what the tool makes, as blocks. One block is the reader's own part."""
+    blocks = ''.join(
+        f'<div class="block{" own" if item.get("own") else ""}">{icon("plus", 44) if item.get("own") else ""}'
+        f'<h3>{esc(item["title"])}</h3><p>{esc(item["text"])}</p></div>' for item in part['items'])
+    text = f'<p>{esc(part["text"])}</p>' if part.get('text') else ''
+    return f'<section class="section split"{anchor(part)}><div><h2>{esc(part["title"])}</h2>{text}</div><div class="blocks">{blocks}</div></section>'
+
+
+def fit_section(part, repo, name):
+    """What the tool is for, beside what it is not for."""
+    def column(side, mark, classes):
+        rows = ''.join(f'<li>{icon(mark, 18)}<span>{esc(item)}</span></li>' for item in side['items'])
+        note = f'<p class="note">{esc(side["note"])}</p>' if side.get('note') else ''
+        return f'<div class="{classes}"><h3>{esc(side["title"])}</h3><ul>{rows}</ul>{note}</div>'
+
+    return f'<section class="section"{anchor(part)}>{heading(part)}<div class="fit">{column(part["use"], "check", "fit-list use")}{column(part["other"], "minus", "fit-list")}</div></section>'
+
+
+SECTION_KINDS = {
+    'media': media_section, 'cards': cards_section, 'steps': steps_section, 'report': report_section,
+    'embed': embed_section, 'enclosure': enclosure_section, 'blocks': blocks_section, 'fit': fit_section,
+}
+
+
+def tool_sections(config):
+    """The page's sections. A site that lists none gets a picture, cards over a band of steps, and its demos."""
+    if 'sections' in config:
+        return config['sections']
+    parts = [dict(config, kind='media', title='')] if config.get('image') else []
+    steps = {'items': config['steps'], 'links': config.get('step_links', []), **({'title': config['flow_title']} if config.get('flow_title') else {})} if config.get('steps') else None
+    if config.get('details') or steps:
+        parts.append({'kind': 'cards', 'id': 'features', 'title': config.get('detail_title', ''), 'items': config.get('details', []), 'steps': steps})
+    parts += [dict(item, kind='media', text=item['description']) for item in config.get('capability_demos', [])]
+    return parts
+
+
+def tool_page(config, args, root):
+    key, name = config['key'], config['name']
     repo = repo_url(key)
-    image = './assets/' + Path(config['image']).name
-    media = f'<a href="{image}" aria-label="Open full-size {esc(config["name"])} image"><img src="{image}" alt="{esc(config["alt"])}" width="{config["width"]}" height="{config["height"]}" fetchpriority="high"></a>'
-    media_link = link(image, TOOL_SITE['full_size'])
-    if config.get('video'):
-        video = './assets/' + Path(config['video']).name
-        media = f'<video data-demo-video controls muted loop playsinline preload="metadata" poster="{image}" width="{config["width"]}" height="{config["height"]}" aria-label="{esc(config["alt"])}"><source src="{video}" type="video/mp4">{link(video, TOOL_SITE['watch'])}</video>'
-        media_link = f'<button class="motion-toggle" data-motion-toggle hidden type="button" aria-pressed="false">{words(TOOL_SITE["pause"])}</button> {link(video, TOOL_SITE["watch_full_size"])}'
-    capability_sections = ''
-    for demo in config.get('capability_demos', []):
-        demo_video = './assets/' + Path(demo['video']).name
-        demo_poster = './assets/' + Path(demo['image']).name
-        capability_sections += f'''<section class="section" id="{esc(demo['id'])}">{section_head(esc(demo['title']), demo['description'])}<figure><div class="product-image"><video data-demo-video controls muted loop playsinline preload="metadata" poster="{demo_poster}" width="{demo['width']}" height="{demo['height']}" aria-label="{esc(demo['alt'])}"><source src="{demo_video}" type="video/mp4">{link(demo_video, TOOL_SITE['watch'])}</video></div><figcaption class="image-caption"><span>{esc(demo['caption'])}</span><span class="demo-actions"><button class="motion-toggle" data-motion-toggle hidden type="button" aria-pressed="false">{words(TOOL_SITE['pause'])}</button> {link(demo_video, TOOL_SITE['watch_full_size'])}</span></figcaption></figure></section>'''
-    details = f'<section class="section">{benefits(config["details"], "benefits three")}</section>' if config.get('details') else ''
+    promise = config['promise']
+    headline = esc(promise) if isinstance(promise, str) else lines(promise)
+    facts = manifest_facts(root)
+    identity = f'<div class="tool-id">{app_icon(key, name)}<div><p class="tool-name">{esc(name)}</p>{facts_row(facts) if facts else ""}</div></div>'
+    standfirst = f'<p class="standfirst">{esc(config["standfirst"])}</p>' if config.get('standfirst') else ''
+    note = ''
+    if config.get('prerequisites'):
+        guide = f' {link(repo + "/blob/main/" + config["guide"], TOOL_SITE["guide"])}' if config.get('guide') else ''
+        note = f'<p class="note">{esc(config["prerequisites"])}{guide}</p>'
+    prompt = config.get('prompt') or SHARED['tool_prompt'].format(url=repo)
+    asks = config.get('requests')
+    asked = requests(asks.get('title', TOOL_SITE['requests']), asks['items']) if asks else ''
+    hero = f'''<section class="hero"><div class="hero-grid"><div>
+      {identity}<h1>{headline}</h1>{standfirst}
+      <div class="actions">{button(SHARED['github'], repo, 'action', 'up-right')}{side_links(config.get('links', []), repo)}</div>
+    </div><div class="hero-side"><div class="hero-start" id="get-started"><p class="eyebrow">{words(TOOL_SITE['install'])}</p>{code_box(prompt, SHARED['prompt_label'], 'prompt')}{note}</div>{asked}</div></div></section>'''
+    body = ''.join(SECTION_KINDS[part['kind']](part, repo, name) for part in tool_sections(config))
     more = f'<section class="section">{section_head(words(SHARED["more_tools"]))}{related(config["related"], args)}</section>' if config.get('related') else ''
-    note = f'{esc(config["prerequisites"])} {link(repo + "/blob/main/" + config["guide"], TOOL_SITE["guide"])}'
-    return f'''<section class="store-head">{app_icon(key, config['name'])}<div><h1>{esc(config['name'])}</h1><p class="standfirst">{esc(config['promise'])}</p><div class="actions">{button(SHARED['get'], '#get-started', 'action', 'down-right')}{button(SHARED['github'], repo, arrow='up-right')}</div></div></section>
-    <figure><div class="product-image">{media}</div><figcaption class="image-caption"><span>{esc(config['caption'])}</span><span class="demo-actions">{media_link}</span></figcaption></figure>
-    <section class="section split"><div><h2>{words(TOOL_SITE['how'])}</h2></div>{numbered(config['steps'])}</section>
-    {details}
-    {capability_sections}
-    <section class="section split" id="get-started"><div><h2>{words(SHARED['get_started']['title'])}</h2><p>{words(SHARED['get_started']['text'])}</p></div>{get_started(config['prompt'], note)}</section>
-    {more}'''
+    tint = config.get('tint', '')
+    if tint and not re.fullmatch(r'#[0-9a-fA-F]{6}', tint):
+        raise ValueError('Tint must be a hex color')
+    shell = f'<div class="tool-site tinted" style="--tint:{tint}">' if tint else '<div class="tool-site">'
+    return f'{shell}{hero}{body}{more}</div>'
+
+
+def section_points(part):
+    """A section's heading and points as plain text."""
+    kind = part['kind']
+    if kind == 'cards':
+        cards = [item if isinstance(item, dict) else dict(zip(('title', 'text'), item)) for item in part.get('items', [])]
+        return part.get('title'), [f'{card["title"]}: {card["text"]}' for card in cards]
+    if kind == 'steps':
+        title = part.get('title', TOOL_SITE['how'])
+        return title if isinstance(title, str) else ' '.join(title), [' '.join(filter(None, pair)) for pair in pairs(part['items'])]
+    if kind == 'enclosure':
+        return part.get('title'), [f'{item["name"]}: {item["text"]}' for item in part['inside']['parts'] + part['outside']['rows']]
+    if kind == 'blocks':
+        return part.get('title'), [f'{item["title"]}: {item["text"]}' for item in part['items']]
+    if kind == 'fit':
+        return part.get('title'), [f'{side["title"]}: {" ".join(side["items"])}' for side in (part['use'], part['other'])]
+    return None, []
+
+
+def tool_llms(config, root):
+    """The tool's page as a text file an agent reads first."""
+    repo = repo_url(config['key'])
+    promise = config['promise']
+    rows = [f'# {config["name"]}', '', f'> {promise if isinstance(promise, str) else " ".join(promise)}', '', ' '.join(config['description'].split()), '',
+            LLMS['tool']['start'], '', '> ' + (config.get('prompt') or SHARED['tool_prompt'].format(url=repo))]
+    asks = config.get('requests')
+    if asks:
+        rows += ['', f'## {asks.get("title", TOOL_SITE["requests"])}', '', *(f'- {item}' for item in asks['items'])]
+    sections = tool_sections(config)
+    for part in sections + [part['steps'] | {'kind': 'steps'} for part in sections if part.get('kind') == 'cards' and part.get('steps')]:
+        title, points = section_points(part)
+        if points:
+            rows += ['', f'## {title or config["name"]}', '', *(f'- {point}' for point in points)]
+    files = [(LLMS['overview']['source'], repo)]
+    pointer = root/'smart-tool.json'
+    if pointer.is_file():
+        files.append((LLMS['tool']['manifest'], f'{repo}/blob/main/{json.loads(pointer.read_text(encoding="utf-8"))["manifest"]}'))
+    linked = config.get('links', []) + [item for part in sections for item in (part.get('links') or []) + ((part.get('steps') or {}).get('links') or [])]
+    files += [(item['label'], item.get('url') or f'{repo}/blob/main/{item["path"]}') for item in linked]
+    rows += ['', f'## {LLMS["tool"]["links"]}', '', *(f'- [{label}]({url})' for label, url in dict(files).items())]
+    return plain('\n'.join(rows)) + '\n'
 
 
 def catalog_tools(root):
@@ -287,10 +509,10 @@ def catalog(config, args, root):
             chips += chip(UNCLASSIFIED, STORE['other'])
         chips = f'<div class="chips" id="category-chips" role="group" aria-label="Category" hidden>{chips}</div>'
     recommended = [tool for tool in tools if tool['state'] == 'recommended']
-    cards = ''.join(tool_card(tool['name'], tool['slug'], tool['tagline'], f'./tools/{tool["slug"]}/') for tool in recommended)
+    cards = ''.join(tool_card(tool['name'], tool['slug'], tool['tagline'], tool_url(tool, './tools/', args)) for tool in recommended)
     featured = f'<section class="store-section" id="featured" aria-labelledby="featured-heading"><div class="store-section-head plain"><h2 id="featured-heading">{words(STORE["recommended"])}</h2></div><div class="card-grid three">{cards}</div></section>' if cards else ''
     count = f'{len(tools)} tool' if len(tools) == 1 else f'{len(tools)} tools'
-    rows = ''.join(app_row(tool, './tools/') for tool in tools)
+    rows = ''.join(app_row(tool, tool_url(tool, './tools/', args)) for tool in tools)
     empty, agent = STORE['empty'], STORE['agent']
     return f'''<section class="catalog-hero"><h1>{words(STORE['title'])}</h1>
     <p class="standfirst">{words(STORE['standfirst'])}</p>
@@ -325,7 +547,7 @@ def listing_page(tool, tools, args):
     others = [other for other in tools if other is not tool]
     more = [other for other in others if tool['category'] and other['category'] == tool['category']]
     more += [other for other in others if other['state'] == 'recommended' and other not in more]
-    more_section = f'<section class="section">{section_head(words(SHARED["more_tools"]))}<div class="app-list">{"".join(app_row(other, "../") for other in more[:3])}</div></section>' if more else ''
+    more_section = f'<section class="section">{section_head(words(SHARED["more_tools"]))}<div class="app-list">{"".join(app_row(other, tool_url(other, "../", args)) for other in more[:3])}</div></section>' if more else ''
     return f'''<section class="store-head">{app_icon(tool['slug'], tool['name'])}<div>{pill}<h1>{esc(tool['name'])}</h1>{facts_row(facts)}<p class="standfirst">{esc(tool['tagline'])}</p><div class="actions">{actions}</div></div></section>
     <section class="section split" id="get-started"><div><h2>{words(SHARED['get_started']['title'])}</h2><p>{words(SHARED['get_started']['text'])}</p></div>{get_started(SHARED['tool_prompt'].format(url=tool['source_url']))}</section>
     {about}
@@ -541,7 +763,7 @@ def post_body(post, md, target):
         if len(following) > 2 and marks == ['em_open', 'em_close'] and following[0].type == 'em_open' and following[-1].type == 'em_close':
             caption = f'<figcaption class="image-caption">{md.renderer.renderInline(following[1:-1], md.options, {})}</figcaption>'
             i += 3
-        parts.append(f'<figure><div class="product-image"><img src="./{quote(name)}" alt="{esc(kids[0].content)}"{dimensions} loading="lazy"></div>{caption}</figure>')
+        parts.append(f'<figure><div class="product-image"><a href="./{quote(name)}"><img src="./{quote(name)}" alt="{esc(kids[0].content)}"{dimensions} loading="lazy"></a></div>{caption}</figure>')
         start = i
     parts.append(md.renderer.render(tokens[start:], md.options, {}))
     return ''.join(parts)
@@ -589,8 +811,7 @@ def document(config, body, args, asset_prefix='./assets/', markdown=''):
     """Wrap a page body in the shared shell. `markdown` is the URL of the page's Markdown copy."""
     key = config['key']
     machine = f'<link rel="alternate" type="text/markdown" href="{markdown}">' if markdown else ''
-    if key in ('overview', 'catalog'):
-        machine += f'<link rel="describedby" type="text/plain" href="{page_url(key, args)}llms.txt">'
+    machine += f'<link rel="describedby" type="text/plain" href="{page_url(key, args)}llms.txt">'
     overview_url = page_url('overview', args)
     labels = SHARED['navigation']
     destinations = [
@@ -615,6 +836,14 @@ def document(config, body, args, asset_prefix='./assets/', markdown=''):
 <body style="--accent:{accent}"><a class="skip" href="#main">{words(SHARED['skip'])}</a>{GLYPH_DEFS}<header class="masthead"><div class="wrap">{brand}<nav class="nav" aria-label="Main navigation">{nav}</nav><button class="menu-toggle" type="button" data-menu-toggle aria-expanded="false" aria-controls="menu" aria-label="Open menu">{icon('menu', 24)}</button></div></header><main class="wrap" id="main">{body}</main><footer class="site-footer"><div class="wrap footer-grid">{brand}<nav class="footer-links" aria-label="Footer">{footer_links}</nav>{credit}</div></footer><div class="menu" id="menu" role="dialog" aria-modal="true" aria-label="Menu"><div class="wrap"><div class="menu-head">{brand}<button class="menu-close" type="button" data-menu-close aria-label="Close menu">{icon('close', 22)}</button></div>{button(SHARED['menu_action'], overview_url + '#get-started', 'primary pill', 'right')}<ul class="menu-rows">{menu_rows}</ul></div></div></body></html>'''
 
 
+def site_config(root):
+    """A site's own content: site.yaml, or site.json."""
+    source = root/'site/site.yaml'
+    if source.is_file():
+        return yaml.safe_load(source.read_text(encoding='utf-8'))
+    return json.loads((root/'site/site.json').read_text(encoding='utf-8'))
+
+
 def main():
     global SPEC
     parser = argparse.ArgumentParser(description=__doc__)
@@ -624,7 +853,7 @@ def main():
     args = parser.parse_args()
     SPEC = page_url('overview', args) + 'spec/'
     root = THEME.parent.parent
-    config = json.loads((root/'site/site.json').read_text())
+    config = site_config(root)
     out = Path(args.output).resolve()
     if out == root or root.is_relative_to(out) or out in (root/'site', THEME):
         raise ValueError('Output must be a separate generated-site directory')
@@ -636,14 +865,22 @@ def main():
         if asset_dir.is_dir():
             shutil.copytree(asset_dir, out/'assets', dirs_exist_ok=True)
     media_paths = [config[k] for k in ('image', 'video') if config.get(k)]
-    media_paths += [demo[k] for demo in config.get('capability_demos', []) for k in ('image', 'video')]
+    media_paths += [part[k] for part in config.get('capability_demos', []) + config.get('sections', []) for k in ('image', 'video') if part.get(k)]
     for media_path in media_paths:
         source = (root/media_path).resolve()
         if not source.is_relative_to(root):
             raise ValueError('Media must belong to the repository')
         shutil.copy2(source,out/'assets'/source.name)
+    for part in config.get('sections', []):
+        if part['kind'] == 'embed':
+            directory, files = embed_sources(root, part)
+            shutil.copytree(directory, out/directory.name, dirs_exist_ok=True)
+            for source in files:
+                shutil.copy2(source, out/directory.name/source.name)
+            if part.get('content'):
+                (out/directory.name/'content.json').write_text(json.dumps(part['content']), encoding='utf-8')
     kind = config['kind']
-    body = overview(config,args,root) if kind == 'overview' else catalog(config,args,root) if kind == 'catalog' else tool_page(config,args)
+    body = overview(config,args,root) if kind == 'overview' else catalog(config,args,root) if kind == 'catalog' else tool_page(config,args,root)
     doc = document(config, body, args)
     if kind == 'overview':
         build_reader(root, out, args, config)
@@ -652,9 +889,11 @@ def main():
     if kind == 'catalog':
         build_listings(root, out, args, config)
         (out/'llms.txt').write_text(catalog_llms(config, args, root), encoding='utf-8')
+    if kind == 'tool':
+        (out/'llms.txt').write_text(tool_llms(config, root), encoding='utf-8')
     (out/'index.html').write_text(doc,encoding='utf-8')
     (out/'.nojekyll').touch()
-    (out/'assets/favicon.svg').write_text(FAVICON)
+    (out/'assets/favicon.svg').write_text(favicon(config['key']))
     print(f'Built {config["key"]}: {out}')
 
 
