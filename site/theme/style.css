@@ -1092,8 +1092,12 @@ h3 + .copy-region {
 .product-image img,
 .product-image video {
   width: 100%;
-  max-height: 760px;
   object-fit: contain;
+}
+
+/* A video fills the width. A height limit would leave bars at its sides. */
+.product-image img {
+  max-height: 760px;
 }
 
 .product-image:has(> .embed) {
