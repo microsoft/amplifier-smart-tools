@@ -235,11 +235,25 @@ llms:
     get_started: Get started
     start: 'Give this prompt to your agent:'
     use_cases: Use it to
+    # In the llms.txt of a tool's own website.
+    manifest: Manifest
+    links: Links
 
-# A tool's own website.
+# A tool's own website. The tool's wording is in its own site.yaml.
 tool_site:
-  # Heading beside the numbered steps.
+  # Small label above the install prompt.
+  install: Ask your agent to install it
+  # Heading of the list at the right of the hero, when the tool gives none.
+  requests: Then ask
+  # Heading at the left of the dark band of steps, when the tool gives none.
   how: How it works.
+  # Small label above the request in an example report.
+  request: Request
+  # The state of a finding in an example report.
+  states:
+    passed: Passed
+    failed: Failed
+    skipped: Not checked
   # Links under the image or video.
   full_size: View full size
   watch: Watch the demo

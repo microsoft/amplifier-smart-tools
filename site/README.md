@@ -4,7 +4,7 @@ This repository's promotional page uses the Amplifier Smart Tools family theme.
 Product page content lives in `site.json`. The canonical theme is maintained in
 `microsoft/amplifier-smart-tools/site/theme`; this repository carries a versioned
 copy so a build does not depend on a moving remote theme or an online service.
-Theme version: 0.2.0. Theme code is MIT licensed.
+Theme version: 0.3.0. Theme code is MIT licensed.
 
 ## Build and preview
 
@@ -63,7 +63,8 @@ separate authorization.
 Use the full family name, Amplifier Smart Tools, as one masthead and footer
 identity. The overview explains the format and how to build a tool; discovery
 and individual tool listings belong in the catalog. The overview may name a few
-tools in `featured` in `site.json`; each entry links to that tool's catalog page.
+tools in `featured` in `site.json`; each entry links to that tool's own website when
+`family.json` has one, and otherwise to its catalog page.
 
 The overview's "What's new" list shows the five newest items from `news` in
 `site.json` and from the blog. A `news` entry has a `date` (YYYY-MM-DD), a `label`,
@@ -82,8 +83,47 @@ footage is available. Do not use a fake player over a still image.
 
 To update a vendored theme, run the canonical `site/sync_theme.py` with an explicit
 target checkout, review the diff, and build again. It updates only `site/theme/`.
-Page content stays in the owning repository. The family link registry holds only
-navigation identity; the catalog's tool inventory remains `tools/*/source.json`.
+Page content stays in the owning repository. The family link registry holds each
+site's name, repository, and owner, and a tagline for a tool that other tool sites list;
+the catalog's tool inventory remains `tools/*/source.json`.
+
+## Tool sites
+
+A tool's own site is one page. Its content is `site/site.yaml` (or `site.json`) in the
+tool's repository, with `kind: tool` and a `key` from `site/theme/family.json`:
+
+```
+promise         the headline: one line, or a list of lines
+standfirst      the sentence under the headline
+tint            the tool's color, as a hex value; it colors the parts that are the tool's own
+prompt          the install prompt; "Go to <repository> and install it." when absent
+prerequisites   a small line under the prompt; guide adds a link to a setup file
+links           links beside the GitHub button
+requests        title and items: things to ask an agent, each with a copy button
+sections        the parts of the page under the headline, in order
+related         keys of other tools to list at the end
+```
+
+Each entry of `sections` has a `kind`, so each tool composes its own page:
+
+```
+media       a picture or a looping video: image, video, alt, caption, width, height; zoom enlarges a screenshot on a phone
+cards       title and items (title, text, icon); steps adds a band under the cards
+steps       a dark band of numbered steps: title, links, items
+report      an example of a result: request, caption, and findings (state, title, text, evidence)
+embed       a working part of the tool in a frame: directory to copy beside the page, files to add to it, content written there as content.json, label, height, caption
+enclosure   a diagram of what sits inside a boundary: outside, link, inside, footer
+blocks      the parts of what the tool makes: title, text, and items (title, text, own)
+fit         what the tool is for beside what it is not for: use and other (title, items, note)
+```
+
+`kind`, `key`, `name`, `title`, `description`, and `promise` are required. A section may
+also have an `id`, a `title`, and a `text` beside its title. A link has a `label`
+and a `url`, or a `path` to a file in the tool's repository. A site with no `sections` gets
+its `image`, then its `details` as cards over its `steps`. The page shows the version and
+platforms from the manifest that the tool's `smart-tool.json` names, so it follows each
+release. The build also writes `llms.txt` with the prompt, the requests, the points of each
+section, and the links.
 
 ## Catalog categories and recommendations
 
@@ -127,8 +167,9 @@ empty message offers to clear the search. At phone widths the chips scroll sidew
 in one row. Category scopes remain registry metadata and are not displayed. Without
 JavaScript, the search and chips stay hidden and every listing remains visible.
 
-Get, the name, and the card all open the tool's catalog page at `tools/<slug>/`.
-The page shows the icon, the name, one line of facts (category, platforms, publisher,
+Get, the name, and the card all open the tool's catalog page at `tools/<slug>/`. A
+recommended tool with its own website in `family.json` opens that website instead.
+The catalog page shows the icon, the name, one line of facts (category, platforms, publisher,
 version), the first sentence, a prompt that asks an agent to install the tool from its
 source, up to six use cases, and other tools in the same category. An entry without a listing shows the
 category Other. An entry without a snapshot remains readable. A catalog without a

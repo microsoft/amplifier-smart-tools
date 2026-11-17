@@ -10,7 +10,7 @@ args = parser.parse_args()
 source = Path(__file__).resolve().parent/'theme'
 for checkout in args.checkouts:
     root = checkout.resolve()
-    if not (root/'site/site.json').is_file():
+    if not any((root/'site'/name).is_file() for name in ('site.yaml', 'site.json')):
         parser.error(f'{root} is not a configured Smart Tools website')
     target = root/'site/theme'
     if target == source:

@@ -64,6 +64,7 @@
   --pastel-mint: #bfe8d5;
   --pastel-blue: #bcdcf7;
   --pastel-stone: #d9d6cf;
+  --pastel-rose: #f2a7c3;
 
   /* Type */
   --sans: "Instrument Sans", ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
@@ -314,6 +315,16 @@ code {
   color: var(--muted);
 }
 
+/* The sentence reads as an introduction to what follows, under the heading. */
+.section-head.stacked {
+  display: block;
+}
+
+.section-head.stacked > p {
+  max-width: none;
+  margin-top: 12px;
+}
+
 .about {
   max-width: 62ch;
   margin: -12px 0 36px;
@@ -482,6 +493,11 @@ code {
 }
 
 /* Identity: masthead, menu, footer */
+
+.masthead {
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
 
 .masthead .wrap {
   display: flex;
@@ -1067,16 +1083,6 @@ h3 + .copy-region {
   outline-color: var(--on-ink);
 }
 
-.status-message {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: var(--text-xs);
-}
-
-.status-message:empty {
-  display: none;
-}
-
 .product-image {
   overflow: hidden;
   border-radius: var(--radius);
@@ -1088,6 +1094,16 @@ h3 + .copy-region {
   width: 100%;
   max-height: 760px;
   object-fit: contain;
+}
+
+.product-image:has(> .embed) {
+  border: 1px solid var(--line);
+}
+
+.product-image .embed {
+  display: block;
+  width: 100%;
+  border: 0;
 }
 
 .image-caption {
@@ -1576,6 +1592,7 @@ h3 + .copy-region {
 
 .reader-content {
   min-width: 0;
+  overflow-wrap: break-word;
   font-size: 19px;
   line-height: 1.7;
 }
@@ -1610,6 +1627,10 @@ h3 + .copy-region {
   color: var(--on-ink);
   font-size: var(--text-xs);
   line-height: 1.7;
+}
+
+.reader-content pre code {
+  font-size: inherit;
 }
 
 .reader-content blockquote {
@@ -1684,10 +1705,6 @@ h3 + .copy-region {
 
 .source-line a {
   color: var(--ink);
-}
-
-.benefits.three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 /* Reasons to use a tool, as cards under an icon tile. */
@@ -1782,6 +1799,10 @@ h3 + .copy-region {
   border-bottom: 1px solid var(--line);
 }
 
+.post-header .eyebrow {
+  margin-top: 0;
+}
+
 .post-header .eyebrow a {
   color: inherit;
   text-decoration: none;
@@ -1824,11 +1845,17 @@ h3 + .copy-region {
   border-color: var(--ink);
 }
 
+.copy .icon + .icon,
+.copy[data-copied] .icon,
 .copy-markdown .icon + .icon,
-.copy-markdown[data-copied] .icon {
+.copy-markdown[data-copied] .icon,
+.copy-request .icon + .icon,
+.copy-request[data-copied] .icon {
   display: none;
 }
 
+.copy[data-copied] .icon + .icon,
+.copy-request[data-copied] .icon + .icon,
 .copy-markdown[data-copied] .icon + .icon {
   display: block;
   animation: copied .28s var(--ease);
@@ -1891,8 +1918,377 @@ h3 + .copy-region {
   color: var(--muted);
 }
 
+/* A section after a picture is divided from it like one section from the next. */
 figure + .section {
+  margin-top: var(--chapter);
   padding-top: var(--chapter);
+  border-top: 1px solid var(--line);
+}
+
+/* A tool's own site */
+
+.tool-id {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.tool-id .app-icon {
+  --size: 52px;
+}
+
+.tool-name {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+
+.tool-id .facts {
+  margin-top: 2px;
+}
+
+/* The install prompt and the things to ask share the column at the right of the headline, which is the taller one. */
+.tool-site .hero-grid {
+  align-items: center;
+}
+
+.hero-side {
+  display: grid;
+  gap: 28px;
+}
+
+.hero-side .hero-start {
+  margin-top: 0;
+}
+
+/* Things to ask: the text, then its copy button. */
+.requests .news-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+}
+
+.requests .news-list p {
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.copy-request {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line-control);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.copy-request:hover,
+.copy-request[data-copied] {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* A tool's color: the pastel of its icon, on the parts that are its own. */
+.tinted .requests {
+  background: color-mix(in srgb, var(--tint) 36%, var(--paper-raised));
+}
+
+.tinted .requests .news-list li + li {
+  border-top-color: rgb(24 26 22 / .16);
+}
+
+.tinted .benefits.cards .tile {
+  background: var(--tint);
+}
+
+.tinted .build .numbered li::before {
+  color: var(--tint);
+}
+
+/* Three cards stay in one row until the phone layout, so none is left alone. */
+@media (min-width: 701px) {
+  .benefits.cards.of-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .benefits.cards.of-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* A band of steps on its own closes the section above it. */
+.section.joined {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.section > .build:first-child {
+  margin-top: 0;
+}
+
+/* An example report: the request, a tally, and each finding with its evidence. */
+.report {
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+.report-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px 32px;
+  padding: 24px 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.report-head .eyebrow {
+  margin-bottom: 6px;
+}
+
+.report-request {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -.015em;
+}
+
+.tally,
+.findings,
+.evidence,
+.fit-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font: 500 12px/1 var(--mono);
+}
+
+.tally li {
+  padding: 7px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--pastel-stone);
+}
+
+.findings {
+  padding: 0 28px;
+}
+
+.finding {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) minmax(0, .8fr);
+  align-items: start;
+  gap: 10px 20px;
+  padding: 22px 0;
+}
+
+.finding + .finding {
+  border-top: 1px solid var(--line);
+}
+
+.state {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--pastel-stone);
+}
+
+.tally .passed,
+.finding.passed .state {
+  background: var(--pastel-mint);
+}
+
+.tally .failed,
+.finding.failed .state {
+  background: var(--pastel-rose);
+}
+
+.finding-state {
+  color: var(--muted);
+  font: 500 11px/1.4 var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.finding h3 {
+  margin-top: 2px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -.01em;
+}
+
+.finding h3 + p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: var(--text-s);
+  line-height: 1.45;
+}
+
+.evidence {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.evidence li {
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-swatch);
+  background: var(--paper);
+  color: var(--muted);
+  font: 500 11px/1.3 var(--mono);
+}
+
+/* What sits inside a boundary: the outside at the left, the walled space at the right. */
+.flow.enclosure {
+  grid-template-columns: minmax(0, .8fr) auto minmax(0, 2fr);
+}
+
+.flow-panel.wall {
+  padding: 18px;
+  border: 1.5px dashed var(--ink);
+  background: color-mix(in srgb, var(--tint, var(--pastel-blue)) 32%, var(--paper-raised));
+}
+
+.wall .eyebrow {
+  margin: -4px 0 8px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.enclosure-parts {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.enclosure .flow-item > div {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.enclosure .tile {
+  background: var(--pastel-butter);
+}
+
+.wall .tile {
+  background: var(--tint, var(--pastel-blue));
+}
+
+/* The parts of what a tool makes, as blocks. The reader's own part is the filled one. */
+.blocks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 190px;
+  padding: 22px;
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+}
+
+.block h3 {
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+
+.block p {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: var(--text-s);
+  line-height: 1.45;
+}
+
+.block.own {
+  border-color: transparent;
+  background: var(--tint, var(--pastel-mint));
+}
+
+.block.own p {
+  color: var(--ink);
+}
+
+.block.own .icon {
+  width: 52px;
+  height: 52px;
+  margin: -6px 0 auto -8px;
+  stroke-width: 2.4;
+}
+
+/* What a tool is for, beside what it is not for. */
+.fit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+.fit-list {
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.fit-list.use {
+  border-color: transparent;
+  background: var(--paper-raised);
+}
+
+.fit-list h3 {
+  margin-bottom: 12px;
+  font-size: 20px;
+  letter-spacing: -.02em;
+}
+
+.fit-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 0;
+  line-height: 1.4;
+}
+
+.fit-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.fit-list li .icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.fit-list:not(.use) li {
+  color: var(--muted);
+}
+
+/* The product picture belongs to the opening above it. */
+.hero + figure {
+  margin-top: -16px;
+}
+
+/* A screenshot on white paper needs an edge. */
+.hero + figure .product-image {
+  border: 1px solid var(--line);
 }
 
 .app-row p + .tag {
@@ -1959,7 +2355,8 @@ figure + .section {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .flow {
+  .flow,
+  .flow.enclosure {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -2039,7 +2436,6 @@ figure + .section {
   .split,
   .app-list,
   .benefits,
-  .benefits.three,
   .build .numbered,
   .card-grid.three {
     grid-template-columns: minmax(0, 1fr);
@@ -2109,5 +2505,170 @@ figure + .section {
 
   .reader-content {
     font-size: 18px;
+  }
+}
+
+@media (max-width: 700px) {
+  .report-head {
+    padding: 20px 18px;
+  }
+
+  .findings {
+    padding: 0 18px;
+  }
+
+  .finding {
+    grid-template-columns: 36px minmax(0, 1fr);
+    column-gap: 14px;
+  }
+
+  .evidence {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .enclosure-parts,
+  .blocks,
+  .fit {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* A long line under a diagram wraps where it cannot fit. */
+  .dimension {
+    white-space: normal;
+    text-align: center;
+  }
+
+  /* A wide screenshot shows its top left part, large enough to read. */
+  .product-image.zoom img {
+    aspect-ratio: 1;
+    object-fit: cover;
+    object-position: left top;
+  }
+
+  .block {
+    min-height: 0;
+  }
+
+  .copy-request {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* The opening and the section under it have no rule between them, so one of the two paddings is enough. */
+  .hero {
+    padding-bottom: 12px;
+  }
+
+  .hero + figure {
+    margin-top: 32px;
+  }
+
+  .about {
+    margin-top: 0;
+  }
+
+  /* A card is a row on a phone: the tile at the left, the words beside it. */
+  .benefits.cards > div {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    column-gap: 16px;
+    padding: 20px;
+  }
+
+  .benefits.cards .tile {
+    grid-row: span 2;
+    margin-bottom: 0;
+  }
+
+  .block.own .icon {
+    margin-bottom: 20px;
+  }
+
+  .fit-list {
+    padding: 20px;
+  }
+  /* One of the two paddings where the last section meets the footer. */
+  .site-footer {
+    margin-top: 0;
+  }
+
+  /* The last row of a list has the rule of the next section under it. */
+  .use-cases li:last-child,
+  .app-list > .app-row:last-child,
+  .post-row:last-child {
+    border-bottom: 0;
+  }
+
+  .app-row {
+    column-gap: 12px;
+  }
+
+  .actions {
+    gap: 14px 16px;
+  }
+
+  .reader-content ul,
+  .reader-content ol {
+    padding-left: 24px;
+  }
+
+  /* Each control is at least 40px high for a thumb. */
+  .chip,
+  .copy,
+  .copy-markdown {
+    min-height: 40px;
+  }
+
+  .text-link {
+    position: relative;
+  }
+
+  .text-link::after {
+    content: "";
+    position: absolute;
+    inset: -8px 0;
+  }
+
+  .reader-sidebar > nav {
+    gap: 0 16px;
+  }
+
+  .reader-sidebar > nav a,
+  .reader-toc nav a {
+    padding: 11px 0;
+  }
+
+  .reader-toc nav {
+    gap: 0;
+    margin-top: 0;
+  }
+
+  .reader-toc summary {
+    padding: 13px 0;
+  }
+
+  .reader-source {
+    margin-top: 8px;
+    padding: 11px 0;
+  }
+
+  .footer-links {
+    gap: 0 32px;
+  }
+
+  .footer-links a {
+    padding: 10px 0;
+  }
+
+  .footer-grid {
+    row-gap: 20px;
+  }
+}
+
+/* A stacked diagram keeps each arrow beside its label. */
+@media (max-width: 1000px) {
+  .flow-arrow {
+    justify-content: center;
   }
 }

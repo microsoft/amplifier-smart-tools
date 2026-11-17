@@ -381,7 +381,7 @@ def test_catalog_with_registry_shows_search_chips_featured_and_all_tools(tmp_pat
     assert "Listings come from each tool's own manifest." not in result
     assert 'Let your agent browse.' in result
     assert build.FAMILY_PROMPT == 'Go to https://github.com/microsoft/amplifier-smart-tools and install it.'
-    assert f'<pre id="prompt">{build.FAMILY_PROMPT}</pre>' in result
+    assert f'<pre id="prompt">{build.FAMILY_PROMPT}</pre>' in result.replace('<wbr>', '')
     assert result.endswith('<div class="callout"><h3>Ask your agent.</h3>'
                            f'{build.code_box(build.FAMILY_PROMPT, "Prompt", "prompt")}</div></section>')
     assert 'class="note"' not in result
@@ -961,7 +961,7 @@ def test_listing_page_presents_a_recommended_tool(tmp_path):
                              'Publisher': 'example'}
     assert use_cases(result) == ['Reproduce failures']
     assert 'get-started' in page.ids
-    assert f'<pre id="prompt">Go to {SOURCE} and install it.</pre>' in result
+    assert f'<pre id="prompt">Go to {SOURCE} and install it.</pre>' in result.replace('<wbr>', '')
     assert all(anchor['text'] != 'Read manifest' for anchor in page.links)
     for provenance in ('class="note"', 'Manifest snapshot', '2026-01-01', COMMIT[:7], 'SMART_TOOL.md'):
         assert provenance not in result
@@ -1026,7 +1026,7 @@ use_cases: {json.dumps(cases)}
         ('Publisher', 'Microsoft'), ('Version', 'v1.4.2')]
     assert use_cases(result) == cases[:6]
     assert '<h2>Use it to.</h2><p>Then compare the traces. Keep the evidence.</p>' in result
-    assert f'<pre id="prompt">Go to {pointer["repository"]} and install it.</pre>' in result
+    assert f'<pre id="prompt">Go to {pointer["repository"]} and install it.</pre>' in result.replace('<wbr>', '')
 
 
 def test_listing_page_without_use_cases_or_platforms(tmp_path):
@@ -1053,7 +1053,7 @@ def test_listing_page_without_snapshot_stays_readable(tmp_path):
     assert 'class="note"' not in result
     assert all(anchor['text'] != 'Read manifest' for anchor in page.links)
     assert page.link('View on GitHub') == SOURCE
-    assert f'<pre id="prompt">Go to {SOURCE} and install it.</pre>' in result
+    assert f'<pre id="prompt">Go to {SOURCE} and install it.</pre>' in result.replace('<wbr>', '')
 
 
 def test_subdirectory_pointer_sends_readers_to_the_tree_url(tmp_path):
@@ -1068,7 +1068,7 @@ def test_subdirectory_pointer_sends_readers_to_the_tree_url(tmp_path):
     result = listing_page(tmp_path, 'tool')
     page = Page(result)
     assert page.link('View on GitHub') == tree
-    assert f'<pre id="prompt">Go to {tree} and install it.</pre>' in result
+    assert f'<pre id="prompt">Go to {tree} and install it.</pre>' in result.replace('<wbr>', '')
     assert all(anchor['text'] != 'Read manifest' for anchor in page.links)
     for provenance in (COMMIT[:7], 'SMART_TOOL.md', '/blob/'):
         assert provenance not in result
@@ -1082,7 +1082,7 @@ def test_pointer_to_another_ref_sends_readers_to_that_ref(tmp_path):
     entry(tmp_path, 'tool', pointer={'repository': REPO, 'ref': 'next'}, provenance=provenance)
     _, [tool] = build.catalog_tools(tmp_path)
     assert tool['source_url'] == f'{SOURCE}/tree/next'
-    assert f'<pre id="prompt">Go to {SOURCE}/tree/next and install it.</pre>' in listing_page(tmp_path, 'tool')
+    assert f'<pre id="prompt">Go to {SOURCE}/tree/next and install it.</pre>' in listing_page(tmp_path, 'tool').replace('<wbr>', '')
 
 
 @pytest.mark.parametrize('local,website', [
@@ -1259,7 +1259,7 @@ def test_build_listings_writes_one_page_per_tool(tmp_path):
         assert f'="../../assets/{asset}"' in zulu
     assert './assets/' not in zulu.replace('../../assets/', '')
     assert '<p class="status-pill">Recommended</p><h1>Zulu</h1>' in zulu
-    assert f'<pre id="prompt">Go to {SOURCE} and install it.</pre>' in zulu
+    assert f'<pre id="prompt">Go to {SOURCE} and install it.</pre>' in zulu.replace('<wbr>', '')
     assert '<a href="https://microsoft.github.io/amplifier-smart-tools-catalog/" aria-current="page">Catalog</a>' in zulu
     alpha = (out/'tools/alpha/index.html').read_text(encoding='utf-8')
     assert '<title>Alpha | Amplifier Smart Tools catalog</title>' in alpha
@@ -1410,18 +1410,19 @@ def test_document_head_names_the_markdown_copy_and_the_llms_file(local, owner, o
     args = SimpleNamespace(local=local, family_owner=owner)
     icon = '<link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">'
     stylesheet = '<link rel="stylesheet" href="./assets/style.css">'
+    tool_url = '/possibly/' if local else 'https://robotdad.github.io/possibly/'
     for key, kind, site in (('overview', 'overview', overview_url), ('overview', 'blog', overview_url),
                             ('overview', 'reader', overview_url), ('catalog', 'catalog', catalog_url),
-                            ('possibly', 'tool', None)):
+                            ('possibly', 'tool', tool_url)):
         config = dict(CATALOG, key=key, kind=kind)
-        described = f'<link rel="describedby" type="text/plain" href="{site}llms.txt">' if site else ''
+        described = f'<link rel="describedby" type="text/plain" href="{site}llms.txt">'
         bare = build.document(config, '', args)
         copied = build.document(config, '', args, markdown='./index.md')
         assert f'{icon}{described}{stylesheet}' in bare.split('</head>', 1)[0]
         assert f'{icon}{ALTERNATE}{described}{stylesheet}' in copied.split('</head>', 1)[0]
         assert copied.replace(ALTERNATE, '') == bare
         assert 'rel="alternate"' not in bare and 'text/markdown' not in bare
-        assert bare.count('rel="describedby"') == bare.count('llms.txt') == (1 if site else 0)
+        assert bare.count('rel="describedby"') == bare.count('llms.txt') == 1
 
 
 @pytest.mark.parametrize('accent', ['red', '#12345', '#1234567', '#12345g',
@@ -1446,7 +1447,7 @@ def test_rendered_catalog_carries_every_hook_the_script_reads(tmp_path):
         assert f'[{attribute}]' in script
         assert re.search(rf'<button [^>]*\b{attribute}\b', doc)
     assert 'data-copy="prompt"' in doc and 'prompt' in page.ids
-    assert '<div class="copy-region">' in doc and '<p class="status-message" role="status"' in doc
+    assert '<div class="copy-region">' in doc and '<p class="visually-hidden" role="status"' in doc
     assert ".app-row[data-tool]" in script
     assert slugs(page.rows) == ['digital-twin-universe', 'reality-check']
     assert not page.duplicate_ids
@@ -1531,7 +1532,7 @@ def test_overview_sections(tmp_path):
     assert ('<div class="hero-start" id="get-started">'
             '<p class="eyebrow">Teach your agent about Smart Tools</p>'
             f'{build.code_box(build.FAMILY_PROMPT, "Prompt", "prompt")}</div>') in result
-    assert f'<pre id="prompt">{build.FAMILY_PROMPT}</pre>' in result
+    assert f'<pre id="prompt">{build.FAMILY_PROMPT}</pre>' in result.replace('<wbr>', '')
     for absent in ('class="standfirst"', 'class="note"', SKILL_NOTE, 'Get started.', 'Ask your agent.',
                    'class="callout"', 'A sub-agent you call like a CLI.'):
         assert absent not in result
@@ -1564,12 +1565,12 @@ def test_overview_sections(tmp_path):
     assert not page.duplicate_ids
 
 
-@pytest.mark.parametrize('local,owner,catalog_url', [
-    (False, None, CATALOG_URL),
-    (False, 'robotdad', 'https://robotdad.github.io/amplifier-smart-tools-catalog/'),
-    (True, None, '/amplifier-smart-tools-catalog/'),
+@pytest.mark.parametrize('local,owner,catalog_url,website', [
+    (False, None, CATALOG_URL, 'https://microsoft.github.io/amplifier-smart-tool-reality-check/'),
+    (False, 'robotdad', 'https://robotdad.github.io/amplifier-smart-tools-catalog/', 'https://robotdad.github.io/amplifier-smart-tool-reality-check/'),
+    (True, None, '/amplifier-smart-tools-catalog/', '/amplifier-smart-tool-reality-check/'),
 ])
-def test_overview_featured_cards_link_to_catalog_tool_pages(tmp_path, local, owner, catalog_url):
+def test_overview_featured_cards_link_to_tool_websites_or_catalog_pages(tmp_path, local, owner, catalog_url, website):
     featured = [
         {'slug': 'reality-check', 'name': 'Reality Check', 'tagline': 'Tests your app by using it.'},
         {'slug': 'unknown-tool', 'name': '<b>Unknown</b>', 'tagline': 'Draws <i>its</i> initial.'},
@@ -1581,7 +1582,7 @@ def test_overview_featured_cards_link_to_catalog_tool_pages(tmp_path, local, own
     assert f'style="--field:{graphics.TILE}"' in result
     assert graphics.ARTWORK['reality-check'] in result
     assert [card['links'] for card in page.cards] == [
-        [f'{catalog_url}tools/reality-check/'] * 2, [f'{catalog_url}tools/unknown-tool/'] * 2]
+        [website] * 2, [f'{catalog_url}tools/unknown-tool/'] * 2]
     assert 'Tests your app by using it.' in page.cards[0]['text']
     assert '<b>Unknown</b>' not in result and '<i>its</i>' not in result
     assert 'Start with these.' in result
@@ -1614,7 +1615,7 @@ def test_overview_orders_hero_featured_why_and_what(tmp_path):
         'Expertise, built<br>into the tool.', "What's new", 'Start with these.', 'Why Smart Tools?',
         'What are Smart Tools?']
     hero = result.split('</section>', 1)[0]
-    news = build.news(config, tmp_path, CATALOG_URL)
+    news = build.news(config, ARGS, tmp_path, CATALOG_URL)
     assert news.count('<li>') == 2
     assert hero.endswith(f'</div>\n    </div>{news}</div>')
     assert result.count('<aside') == result.count('class="news"') == 1
@@ -1680,7 +1681,7 @@ def test_news_lists_site_entries_and_blog_posts_newest_first(tmp_path):
         {'date': '2025-12-31', 'label': 'Release', 'title': 'Fixture Tool 0.9', 'tool': 'fixture-tool'},
     ]}
     before = copy.deepcopy(config)
-    assert build.news(config, tmp_path, CATALOG_URL) == news_list(
+    assert build.news(config, ARGS, tmp_path, CATALOG_URL) == news_list(
         news_row('2026-12-25', 'Dec 25, 2026', 'Blog', 'Bravo post', './blog/bravo/'),
         news_row('2026-11-16', 'Nov 16, 2026', 'Welcome', 'Welcome to the fixture'),
         news_row('2026-11-05', 'Nov 5, 2026', 'Blog', 'Alpha post', './blog/alpha/'),
@@ -1695,7 +1696,7 @@ def test_news_on_one_date_lists_site_entries_before_blog_posts(tmp_path):
     config = {'news': [{'date': '2026-11-16', 'label': 'Welcome', 'title': 'First entry'},
                        {'date': '2026-11-17', 'label': 'Release', 'title': 'Newer entry'},
                        {'date': '2026-11-16', 'label': 'Release', 'title': 'Second entry'}]}
-    assert build.news(config, tmp_path, CATALOG_URL) == news_list(
+    assert build.news(config, ARGS, tmp_path, CATALOG_URL) == news_list(
         news_row('2026-11-17', 'Nov 17, 2026', 'Release', 'Newer entry'),
         news_row('2026-11-16', 'Nov 16, 2026', 'Welcome', 'First entry'),
         news_row('2026-11-16', 'Nov 16, 2026', 'Release', 'Second entry'),
@@ -1707,39 +1708,39 @@ def test_news_shows_at_most_five_items(tmp_path):
     entries = [{'date': f'2026-10-0{day}', 'label': 'Release', 'title': f'Entry {day}'} for day in range(1, 5)]
     for day in (5, 6, 7):
         post(tmp_path, f'post-{day}', POST.replace('2026-11-16', f'2026-09-0{day}').replace('Fixture', f'Post {day}'))
-    assert build.news({'news': entries}, tmp_path, CATALOG_URL) == news_list(
+    assert build.news({'news': entries}, ARGS, tmp_path, CATALOG_URL) == news_list(
         *(news_row(f'2026-10-0{day}', f'Oct {day}, 2026', 'Release', f'Entry {day}') for day in (4, 3, 2, 1)),
         news_row('2026-09-07', 'Sep 7, 2026', 'Blog', 'Post 7 post', './blog/post-7/'))
-    assert build.news({'news': entries[:2]}, tmp_path, CATALOG_URL).count('<li>') == 5
-    assert build.news({'news': entries[:1]}, tmp_path, CATALOG_URL).count('<li>') == 4
-    assert build.news({}, tmp_path, CATALOG_URL) == news_list(
+    assert build.news({'news': entries[:2]}, ARGS, tmp_path, CATALOG_URL).count('<li>') == 5
+    assert build.news({'news': entries[:1]}, ARGS, tmp_path, CATALOG_URL).count('<li>') == 4
+    assert build.news({}, ARGS, tmp_path, CATALOG_URL) == news_list(
         *(news_row(f'2026-09-0{day}', f'Sep {day}, 2026', 'Blog', f'Post {day} post', f'./blog/post-{day}/')
           for day in (7, 6, 5)))
 
 
 @pytest.mark.parametrize('config', [{}, {'news': []}])
 def test_overview_without_news_or_posts_has_no_news_list(tmp_path, config):
-    assert build.news(config, tmp_path, CATALOG_URL) == ''
+    assert build.news(config, ARGS, tmp_path, CATALOG_URL) == ''
     result = build.overview(config, ARGS, tmp_path)
     for absent in ('<aside', 'class="news', "What's new", '<time', '<ol class="news-list">'):
         assert absent not in result
     assert '</div>\n    </div></div></section>' in result
 
 
-@pytest.mark.parametrize('local,owner,catalog_url', [
-    (False, None, CATALOG_URL),
-    (False, 'robotdad', 'https://robotdad.github.io/amplifier-smart-tools-catalog/'),
-    (True, None, '/amplifier-smart-tools-catalog/'),
+@pytest.mark.parametrize('local,owner,website', [
+    (False, None, 'https://microsoft.github.io/amplifier-smart-tool-reality-check/'),
+    (False, 'robotdad', 'https://robotdad.github.io/amplifier-smart-tool-reality-check/'),
+    (True, None, '/amplifier-smart-tool-reality-check/'),
 ])
-def test_overview_news_tool_entry_links_to_its_catalog_page(tmp_path, local, owner, catalog_url):
+def test_overview_news_tool_entry_links_to_its_website(tmp_path, local, owner, website):
     config = {'news': [{'date': '2026-11-13', 'label': 'Release', 'title': 'Reality Check 0.9.1', 'tool': 'reality-check'},
                        {'date': '2026-11-03', 'label': 'Welcome', 'title': 'Welcome'}]}
     result = build.overview(config, SimpleNamespace(local=local, family_owner=owner), tmp_path)
     page = Page(result)
     assert news_list(
-        news_row('2026-11-13', 'Nov 13, 2026', 'Release', 'Reality Check 0.9.1', f'{catalog_url}tools/reality-check/'),
+        news_row('2026-11-13', 'Nov 13, 2026', 'Release', 'Reality Check 0.9.1', website),
         news_row('2026-11-03', 'Nov 3, 2026', 'Welcome', 'Welcome')) in result
-    assert page.link('Reality Check 0.9.1') == f'{catalog_url}tools/reality-check/'
+    assert page.link('Reality Check 0.9.1') == website
     assert 'Welcome' not in [anchor['text'] for anchor in page.links]
     assert not page.duplicate_ids
 
@@ -1749,7 +1750,7 @@ def test_overview_news_tool_entry_links_to_its_catalog_page(tmp_path, local, own
 def test_news_rejects_tool_that_is_not_a_catalog_directory_name(tmp_path, slug):
     item = {'date': '2026-11-16', 'label': 'Release', 'title': 'Fixture', 'tool': slug}
     with pytest.raises(ValueError, match='News tool must be a catalog directory name'):
-        build.news({'news': [item]}, tmp_path, CATALOG_URL)
+        build.news({'news': [item]}, ARGS, tmp_path, CATALOG_URL)
     with pytest.raises(ValueError, match='News tool'):
         build.overview({'news': [item]}, ARGS, tmp_path)
 
@@ -1759,13 +1760,13 @@ def test_news_rejects_tool_that_is_not_a_catalog_directory_name(tmp_path, slug):
 def test_news_rejects_date_that_is_not_a_date(tmp_path, value):
     item = {'date': value, 'label': 'Release', 'title': 'Fixture'}
     with pytest.raises(ValueError):
-        build.news({'news': [item]}, tmp_path, CATALOG_URL)
+        build.news({'news': [item]}, ARGS, tmp_path, CATALOG_URL)
 
 
 def test_news_text_is_escaped(tmp_path):
     post(tmp_path, 'fixture', POST.replace('Fixture post', "'<b>Post</b> & more'"))
     item = {'date': '2026-11-17', 'label': '<i>Label</i>', 'title': '<script>title()</script> & "more"'}
-    assert build.news({'news': [item]}, tmp_path, CATALOG_URL) == news_list(
+    assert build.news({'news': [item]}, ARGS, tmp_path, CATALOG_URL) == news_list(
         news_row('2026-11-17', 'Nov 17, 2026', '&lt;i&gt;Label&lt;/i&gt;',
                  '&lt;script&gt;title()&lt;/script&gt; &amp; &quot;more&quot;'),
         news_row('2026-11-16', 'Nov 16, 2026', 'Blog', '&lt;b&gt;Post&lt;/b&gt; &amp; more', './blog/fixture/'))
@@ -2017,15 +2018,15 @@ def test_post_image_alone_in_a_paragraph_becomes_a_figure_beside_the_page(tmp_pa
     page = (blog/'fixture/index.html').read_text(encoding='utf-8')
     assert post_content(page) == (
         '<p>Before.</p>\n'
-        '<figure><div class="product-image"><img src="./shot.png" alt="A screenshot" width="640" '
-        'height="480" loading="lazy"></div><figcaption class="image-caption">The caption with '
+        '<figure><div class="product-image"><a href="./shot.png"><img src="./shot.png" alt="A screenshot" width="640" '
+        'height="480" loading="lazy"></a></div><figcaption class="image-caption">The caption with '
         '<code>code</code>.</figcaption></figure>'
         '<p>Between.</p>\n'
-        '<figure><div class="product-image"><img src="./demo.gif" alt="A demo" width="320" '
-        'height="200" loading="lazy"></div></figure>'
+        '<figure><div class="product-image"><a href="./demo.gif"><img src="./demo.gif" alt="A demo" width="320" '
+        'height="200" loading="lazy"></a></div></figure>'
         '<p>After <em>the</em> demo.</p>\n'
-        '<figure><div class="product-image"><img src="./drawing.svg" alt="A drawing" '
-        'loading="lazy"></div></figure>')
+        '<figure><div class="product-image"><a href="./drawing.svg"><img src="./drawing.svg" alt="A drawing" '
+        'loading="lazy"></a></div></figure>')
     assert sorted(path.name for path in (blog/'fixture').iterdir()) == sorted([*files, 'index.html', 'index.md'])
     for name, content in files.items():
         assert (blog/'fixture'/name).read_bytes() == content
@@ -2076,8 +2077,8 @@ A <b onclick="bad">bold</b> word.
     assert post_content(page) == (
         '<p>&lt;script&gt;body()&lt;/script&gt;</p>\n'
         '<p>A &lt;b onclick=&quot;bad&quot;&gt;bold&lt;/b&gt; word.</p>\n'
-        '<figure><div class="product-image"><img src="./shot.png" '
-        'alt="&lt;img onerror=&quot;bad&quot;&gt;" width="640" height="480" loading="lazy"></div></figure>')
+        '<figure><div class="product-image"><a href="./shot.png"><img src="./shot.png" '
+        'alt="&lt;img onerror=&quot;bad&quot;&gt;" width="640" height="480" loading="lazy"></a></div></figure>')
     assert f'<h2><a href="./fixture/">{title}</a></h2><p>{summary}</p>' in index
 
 
@@ -2257,13 +2258,14 @@ def test_overview_spec_reader_and_blog_build_without_catalog_metadata(tmp_path):
     page = Page(index)
     config = json.loads((SITE/'site.json').read_text(encoding='utf-8'))
     assert slugs(page.cards) == [item['slug'] for item in config['featured']]
-    assert all(card['links'] == [f'{CATALOG_URL}tools/{card["data-tool"]}/'] * 2 for card in page.cards)
+    assert all(card['links'] == [build.featured_url(card['data-tool'], CATALOG_URL, ARGS)] * 2 for card in page.cards)
+    assert all(card['links'][0] == f'https://microsoft.github.io/{build.PAGES[card["data-tool"]]["repository"]}/' for card in page.cards)
     assert 'category-chips' not in page.ids and 'tool-search' not in page.ids
     for item in config['news']:
         assert item.keys() - {'tool'} == {'date', 'label', 'title'}
         assert date.fromisoformat(item['date']).isoformat() == item['date']
         assert item['label'].strip() and item['title'].strip()
-    news = build.news(config, SITE.parent, CATALOG_URL)
+    news = build.news(config, ARGS, SITE.parent, CATALOG_URL)
     assert 1 <= news.count('<li>') == min(5, len(config['news']) + len(build.blog_posts(SITE.parent)))
     assert f'{news}</div></section>' in index
     assert index.count('<aside class="news"') == 1
@@ -2346,7 +2348,7 @@ def test_recommendation_guidance_separates_creator_and_maintainer_roles(relative
         assert 'While a search or category is active, Recommended is hidden.' in guidance
         assert ('Without JavaScript, the search and chips stay hidden and every listing '
                 'remains visible.') in guidance
-        assert ('The page shows the icon, the name, one line of facts (category, platforms, '
+        assert ('The catalog page shows the icon, the name, one line of facts (category, platforms, '
                 'publisher, version), the first sentence, a prompt that asks an agent to install '
                 'the tool from its source, up to six use cases, and other tools in the same '
                 'category.') in guidance
@@ -2446,3 +2448,17 @@ def test_website_artifact_retention_and_no_pr_deploy():
         "(github.event_name == 'push' && github.ref == 'refs/heads/main') || "
         "(github.event_name == 'workflow_dispatch' && inputs.publish)"
     )
+
+
+def test_a_recommended_tool_with_its_own_website_links_there_and_any_other_tool_to_its_catalog_page():
+    tool = {'slug': 'reality-check', 'state': 'recommended', 'showcase': 'reality-check'}
+    assert build.tool_url(tool, './tools/', ARGS) == 'https://microsoft.github.io/amplifier-smart-tool-reality-check/'
+    assert build.tool_url(tool, '../', SimpleNamespace(local=True, family_owner=None)) == '/amplifier-smart-tool-reality-check/'
+    assert build.tool_url(dict(tool, state='ordinary'), './tools/', ARGS) == './tools/reality-check/'
+    assert build.tool_url(dict(tool, showcase=None), '../', ARGS) == '../reality-check/'
+
+
+def test_a_featured_tool_with_its_own_website_links_there_and_any_other_tool_to_its_catalog_page():
+    assert build.featured_url('reality-check', CATALOG_URL, ARGS) == 'https://microsoft.github.io/amplifier-smart-tool-reality-check/'
+    assert build.featured_url('catalog', CATALOG_URL, ARGS) == f'{CATALOG_URL}tools/catalog/'
+    assert build.featured_url('unknown-tool', CATALOG_URL, ARGS) == f'{CATALOG_URL}tools/unknown-tool/'

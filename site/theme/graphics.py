@@ -8,6 +8,8 @@ ICONS = {
     'arrow-down-right': 'M6.5 6.5l11 11M17.5 8v9.5H8',
     'menu': 'M4 9.5H20M4 14.5H20',
     'close': 'M6 6l12 12M18 6L6 18',
+    'minus': 'M6 12H18',
+    'plus': 'M12 5V19M5 12H19',
     'copy': 'M9 9H20V20H9ZM15 9V4H4V15H9',
     'check': 'M5 12.5l4.5 4.5L19 7.5',
     'search': 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13M15.5 15.5L20 20',
@@ -120,6 +122,14 @@ ARTWORK = {
         + _stroke('M24.5 32.0C24.4 31.5 24.0 30.1 24.1 29.0C24.1 28.0 24.4 26.8 24.9 25.8C25.4 24.8 26.1 23.7 27.1 22.8C28.0 22.0 29.2 21.2 30.5 20.7C31.8 20.3 33.3 20.0 34.7 20.0C36.2 20.0 37.9 20.3 39.3 20.9C40.8 21.5 42.3 22.5 43.5 23.6C44.8 24.8 45.9 26.3 46.7 28.0C47.4 29.6 48.0 31.5 48.1 33.5C48.2 35.4 48.0 37.5 47.4 39.4C46.8 41.4 45.8 43.4 44.5 45.1C43.2 46.8 41.4 48.4 39.5 49.5C37.6 50.7 35.2 51.6 32.9 52.0C30.6 52.4 26.7 52.0 25.5 52.0', cap='round')
         + '<circle cx="32" cy="32" r="4" fill="#bcdcf7"/>'),
 }
+
+
+def favicon(slug):
+    """A tool's own artwork on its tile, or the family wrench."""
+    if slug not in ARTWORK:
+        return FAVICON
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+            f'<rect width="64" height="64" rx="14" fill="{TILE}"/>{ARTWORK[slug]}</svg>')
 
 
 def field(slug):

@@ -2,12 +2,20 @@
 document.documentElement.classList.add('js');
 
 for (const button of document.querySelectorAll('[data-copy]')) {
+  let reset;
   button.addEventListener('click', async () => {
     const code = document.getElementById(button.dataset.copy);
     const status = button.closest('.copy-region').querySelector('[role="status"]');
     try {
       await navigator.clipboard.writeText(code.textContent);
-      status.textContent = 'Copied. Paste it into your agent.';
+      // The button shows the result to the eye, so the page does not move. The status line says it to a screen reader.
+      status.textContent = 'Copied.';
+      button.toggleAttribute('data-copied', true);
+      clearTimeout(reset);
+      reset = setTimeout(() => {
+        button.toggleAttribute('data-copied', false);
+        status.textContent = '';
+      }, 1600);
     } catch {
       const range = document.createRange();
       range.selectNodeContents(code);
